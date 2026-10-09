@@ -10,7 +10,7 @@
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <!-- Leaflet CSS & JS -->
+  <!-- Leaflet CSS & JS (Fallback GIS Engine) -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -24,9 +24,7 @@
       height: 4px;
       background: linear-gradient(90deg, #FF9933 33.3%, #FFFFFF 33.3%, #FFFFFF 66.6%, #138808 66.6%);
     }
-    .high-contrast {
-      filter: contrast(115%);
-    }
+    .high-contrast { filter: contrast(115%); }
     @media print {
       body * { visibility: hidden; }
       #printable-receipt, #printable-receipt * { visibility: visible; }
@@ -40,10 +38,9 @@
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
 
-    // ==============================================================
-    // UNIFIED PERSISTENT DATABASE ENGINE (LOCALSTORAGE + FALLBACK)
-    // ==============================================================
+    // Unified Persistent Database
     const DB_KEY = "civicpulse_db_v3";
+    const GMAPS_KEY_STORAGE = "civicpulse_google_maps_api_key";
 
     const DEFAULT_SEED_ISSUES = [
       {
@@ -213,6 +210,32 @@
       }
     }
 
+    // Google Maps Script Loader
+    function loadGoogleMapsScript(apiKey, callback) {
+      if (window.google && window.google.maps) {
+        if (callback) callback();
+        return;
+      }
+      if (!apiKey) return;
+
+      const existingScript = document.getElementById('gmaps-sdk');
+      if (existingScript) existingScript.remove();
+
+      const script = document.createElement('script');
+      script.id = 'gmaps-sdk';
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
+      script.async = true;
+      script.defer = true;
+      script.onload = () => {
+        console.log("Google Maps API loaded successfully.");
+        if (callback) callback();
+      };
+      script.onerror = () => {
+        console.warn("Google Maps API key invalid or network error, falling back to OpenStreetMap.");
+      };
+      document.head.appendChild(script);
+    }
+
     // ==========================================
     // MASTER APPLICATION COMPONENT
     // ==========================================
@@ -222,16 +245,37 @@
       const [trackedSrn, setTrackedSrn] = useState('CIVIC-W12-2026-8419');
       const [showAlertBanner, setShowAlertBanner] = useState(true);
 
+      // Google Maps API Key State
+      const [googleApiKey, setGoogleApiKey] = useState(() => localStorage.getItem(GMAPS_KEY_STORAGE) || '');
+      const [showGmapsModal, setShowGmapsModal] = useState(false);
+      const [gmapsLoaded, setGmapsLoaded] = useState(false);
+
       // Official Accessibility States
-      const [fontSizeScale, setFontSizeScale] = useState(100); // 90, 100, 115 %
+      const [fontSizeScale, setFontSizeScale] = useState(100);
       const [highContrast, setHighContrast] = useState(false);
-      const [selectedLang, setSelectedLang] = useState('en'); // 'en', 'hi', 'kn', 'ta'
+      const [selectedLang, setSelectedLang] = useState('en');
       const [showCharterModal, setShowCharterModal] = useState(false);
 
-      // Save to localStorage whenever issues state changes
+      // Save database
       useEffect(() => {
         saveDatabase(issues);
       }, [issues]);
+
+      // Load Google Maps when API key changes
+      useEffect(() => {
+        if (googleApiKey) {
+          loadGoogleMapsScript(googleApiKey, () => setGmapsLoaded(true));
+        }
+      }, [googleApiKey]);
+
+      const handleSaveGoogleKey = (key) => {
+        setGoogleApiKey(key);
+        localStorage.setItem(GMAPS_KEY_STORAGE, key);
+        setShowGmapsModal(false);
+        if (key) {
+          loadGoogleMapsScript(key, () => setGmapsLoaded(true));
+        }
+      };
 
       const handleAddIssue = (newIssue) => {
         setIssues(prev => [newIssue, ...prev]);
@@ -288,8 +332,20 @@
               <span className="hidden md:inline text-slate-400">Department of Public Grievances & Municipal Administration</span>
             </div>
 
-            {/* Accessibility Controls & Language Switcher */}
-            <div className="flex items-center space-x-4 font-mono text-xs">
+            <div className="flex items-center space-x-3 font-mono text-xs">
+              {/* Google Maps API Key Config Button */}
+              <button
+                onClick={() => setShowGmapsModal(true)}
+                className={`px-2 py-0.5 rounded text-[11px] font-sans font-bold flex items-center gap-1 border ${
+                  googleApiKey
+                    ? 'bg-emerald-950 text-emerald-300 border-emerald-700'
+                    : 'bg-amber-950 text-amber-300 border-amber-700 animate-pulse'
+                }`}
+              >
+                <span>🗺️ Google Maps API:</span>
+                <span>{googleApiKey ? 'Active' : 'Configure Key'}</span>
+              </button>
+
               <div className="flex items-center space-x-1 bg-slate-800 px-2 py-0.5 rounded border border-slate-700">
                 <span className="text-[10px] text-slate-400 mr-1">TEXT:</span>
                 <button onClick={() => setFontSizeScale(90)} className="hover:text-white px-1">A-</button>
@@ -301,7 +357,7 @@
                 onClick={() => setHighContrast(!highContrast)}
                 className="bg-slate-800 px-2 py-0.5 rounded border border-slate-700 hover:text-amber-400 text-[10px]"
               >
-                {highContrast ? '☀️ Normal View' : '🌓 Contrast'}
+                {highContrast ? '☀️ Normal' : '🌓 Contrast'}
               </button>
 
               <select
@@ -433,6 +489,9 @@
           <main className="flex-1">
             {activeTab === 'citizen' && (
               <CitizenView
+                googleApiKey={googleApiKey}
+                gmapsLoaded={gmapsLoaded}
+                onOpenGmapsModal={() => setShowGmapsModal(true)}
                 onIssueCreated={handleAddIssue}
                 onTrack={(srn) => {
                   setTrackedSrn(srn);
@@ -464,6 +523,8 @@
             {activeTab === 'iccc' && (
               <IcccView
                 issues={issues}
+                googleApiKey={googleApiKey}
+                gmapsLoaded={gmapsLoaded}
                 onAssign={handleAssignIssue}
                 onResolve={handleResolveIssue}
                 onSelectSrn={(srn) => {
@@ -473,6 +534,77 @@
               />
             )}
           </main>
+
+          {/* Google Maps API Key Configuration Modal */}
+          {showGmapsModal && (
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+              <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border animate-fade-in text-xs space-y-4">
+                <div className="flex justify-between items-center pb-2 border-b">
+                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <span>🗺️</span>
+                    <span>Google Maps API Configuration</span>
+                  </h3>
+                  <button onClick={() => setShowGmapsModal(false)} className="text-slate-400 hover:text-slate-700 font-bold text-base">✕</button>
+                </div>
+
+                <p className="text-slate-600">
+                  Enter your Google Cloud Maps API Key to enable native Google Maps, Satellite Hybrid aerial imagery, and live Traffic layer.
+                </p>
+
+                <div>
+                  <label className="font-bold text-slate-800 block mb-1">Google Maps API Key (JavaScript API):</label>
+                  <input
+                    type="text"
+                    defaultValue={googleApiKey}
+                    id="gmaps-input"
+                    placeholder="AIzaSy..."
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 font-mono text-xs focus:ring-2 focus:ring-blue-500"
+                  />
+                  <span className="text-[10px] text-slate-400 block mt-1">
+                    Key is securely stored in your browser's localStorage.
+                  </span>
+                </div>
+
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-slate-700 space-y-1 text-[11px]">
+                  <strong>How to get a key in 2 minutes:</strong>
+                  <ol className="list-decimal pl-4 space-y-0.5">
+                    <li>Go to <a href="https://console.cloud.google.com/google/maps-apis" target="_blank" className="text-blue-600 underline font-semibold">Google Cloud Console</a>.</li>
+                    <li>Enable <strong>Maps JavaScript API</strong> and <strong>Geocoding API</strong>.</li>
+                    <li>Create credentials &rarr; Copy API Key and paste it above.</li>
+                  </ol>
+                </div>
+
+                <div className="flex justify-between items-center pt-2 border-t">
+                  <button
+                    type="button"
+                    onClick={() => handleSaveGoogleKey('')}
+                    className="text-rose-600 hover:underline font-semibold"
+                  >
+                    Clear Key (Use OpenStreetMap)
+                  </button>
+                  <div className="space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowGmapsModal(false)}
+                      className="px-3 py-2 border rounded-xl font-bold"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const val = document.getElementById('gmaps-input').value.trim();
+                        handleSaveGoogleKey(val);
+                      }}
+                      className="bg-blue-600 text-white px-5 py-2 rounded-xl font-bold shadow"
+                    >
+                      Save & Activate Google Maps
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Citizen Charter SLA Modal */}
           {showCharterModal && (
@@ -528,7 +660,7 @@
             <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4">
               <div>
                 <p className="font-bold text-slate-200">CivicPulse AI — Smart City Municipal Operations System</p>
-                <p className="text-slate-500 mt-0.5">Pretrained YOLOv8 Computer Vision + Open-Meteo Precipitation Telemetry</p>
+                <p className="text-slate-500 mt-0.5">Pretrained YOLOv8 Computer Vision + Google Maps & Open-Meteo Telemetry</p>
               </div>
               <div className="flex items-center space-x-4 text-slate-400">
                 <span>Built by <strong>Team Knox Drift</strong> (Shyam, Balaji, Sujal, Akhil)</span>
@@ -542,9 +674,9 @@
     }
 
     // ==============================================================
-    // 1. CITIZEN REPORT VIEW WITH LIVE GPS PIN-DROP MINI MAP & OTP
+    // 1. CITIZEN REPORT VIEW WITH GOOGLE MAPS / LEAFLET DUAL GPS
     // ==============================================================
-    function CitizenView({ onIssueCreated, onTrack }) {
+    function CitizenView({ googleApiKey, gmapsLoaded, onOpenGmapsModal, onIssueCreated, onTrack }) {
       const [photoUrl, setPhotoUrl] = useState('');
       const [coords, setCoords] = useState({ lat: 12.9716, lon: 77.5946 });
       const [address, setAddress] = useState('100 Ft Road, Near Indiranagar Metro, Ward 12');
@@ -559,10 +691,13 @@
       const [voiceListening, setVoiceListening] = useState(false);
       const [locatingGps, setLocatingGps] = useState(false);
 
-      // Mini GPS Map reference
-      const miniMapRef = useRef(null);
-      const miniMapInstance = useRef(null);
-      const miniMapMarker = useRef(null);
+      // Map View Toggle: 'google' or 'osm'
+      const [mapEngine, setMapEngine] = useState(() => (googleApiKey && window.google) ? 'google' : 'osm');
+      const miniMapContainerRef = useRef(null);
+      const gmapInstance = useRef(null);
+      const gmapMarker = useRef(null);
+      const osmInstance = useRef(null);
+      const osmMarker = useRef(null);
 
       const samplePhotos = [
         { label: "Pothole on Arterial Road", url: "https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?w=600&auto=format&fit=crop&q=80", type: "Pothole", dept: "PWD / Roads & Bridges", sev: 82, rain: 24.5, lat: 12.9716, lon: 77.5946, addr: "100 Ft Road, Near Indiranagar Metro Pillar 42" },
@@ -571,12 +706,60 @@
         { label: "Broken Streetlight", url: "https://images.unsplash.com/photo-1508873696983-2df5293cb32f?w=600&auto=format&fit=crop&q=80", type: "Broken Streetlight", dept: "Municipal Electrical Dept", sev: 36, rain: 5.0, lat: 12.9550, lon: 77.6150, addr: "Koramangala 5th Block, 80 Feet Road Junction" }
       ];
 
-      // Initialize Mini Leaflet Pin-Drop Map
-      useEffect(() => {
-        if (!miniMapRef.current || !window.L) return;
+      // Update location and reverse geocode
+      const updateLocationCoordinates = (lat, lng) => {
+        const roundedLat = parseFloat(lat.toFixed(6));
+        const roundedLng = parseFloat(lng.toFixed(6));
+        setCoords({ lat: roundedLat, lon: roundedLng });
+        setAddress(`GPS Geo-Tagged: ${roundedLat}° N, ${roundedLng}° E (Pin Dropped)`);
+      };
 
-        if (!miniMapInstance.current) {
-          const map = window.L.map(miniMapRef.current, {
+      // Initialize Map Engine (Google Maps or OpenStreetMap)
+      useEffect(() => {
+        if (!miniMapContainerRef.current) return;
+
+        // 1. Google Maps Engine (if API Key present and loaded)
+        if (mapEngine === 'google' && window.google && window.google.maps) {
+          try {
+            if (!gmapInstance.current) {
+              const map = new window.google.maps.Map(miniMapContainerRef.current, {
+                center: { lat: coords.lat, lng: coords.lon },
+                zoom: 15,
+                mapTypeId: 'roadmap',
+                streetViewControl: false,
+                mapTypeControl: true
+              });
+
+              const marker = new window.google.maps.Marker({
+                position: { lat: coords.lat, lng: coords.lon },
+                map: map,
+                draggable: true,
+                title: "Drag to exact hazard spot",
+                animation: window.google.maps.Animation.DROP
+              });
+
+              marker.addListener('dragend', (e) => {
+                updateLocationCoordinates(e.latLng.lat(), e.latLng.lng());
+              });
+
+              map.addListener('click', (e) => {
+                marker.setPosition(e.latLng);
+                updateLocationCoordinates(e.latLng.lat(), e.latLng.lng());
+              });
+
+              gmapInstance.current = map;
+              gmapMarker.current = marker;
+            }
+            return;
+          } catch (e) {
+            console.warn("Google Maps init fallback to OSM", e);
+            setMapEngine('osm');
+          }
+        }
+
+        // 2. OpenStreetMap Leaflet Engine
+        if (window.L && !osmInstance.current) {
+          const map = window.L.map(miniMapContainerRef.current, {
             center: [coords.lat, coords.lon],
             zoom: 14,
             attributionControl: false
@@ -584,7 +767,6 @@
 
           window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-          // Draggable Red Pin
           const markerIcon = window.L.divIcon({
             className: 'custom-pin',
             html: `<div style="background:#ef4444;width:30px;height:30px;border-radius:50%;border:3px solid white;box-shadow:0 3px 8px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;color:white;font-weight:black;font-size:12px;">📍</div>`,
@@ -599,29 +781,20 @@
 
           marker.bindTooltip("Drag pin to exact spot or click anywhere on map", { permanent: true, direction: 'top' });
 
-          // On Drag End
           marker.on('dragend', (e) => {
             const pos = e.target.getLatLng();
             updateLocationCoordinates(pos.lat, pos.lng);
           });
 
-          // On Map Click -> Move Pin
           map.on('click', (e) => {
             marker.setLatLng(e.latlng);
             updateLocationCoordinates(e.latlng.lat, e.latlng.lng);
           });
 
-          miniMapInstance.current = map;
-          miniMapMarker.current = marker;
+          osmInstance.current = map;
+          osmMarker.current = marker;
         }
-      }, []);
-
-      const updateLocationCoordinates = (lat, lng) => {
-        const roundedLat = parseFloat(lat.toFixed(6));
-        const roundedLng = parseFloat(lng.toFixed(6));
-        setCoords({ lat: roundedLat, lon: roundedLng });
-        setAddress(`GPS Geo-Tagged: ${roundedLat}° N, ${roundedLng}° E (Pin Dropped)`);
-      };
+      }, [mapEngine, gmapsLoaded]);
 
       const handleLocateMe = () => {
         setLocatingGps(true);
@@ -631,9 +804,15 @@
               const lat = pos.coords.latitude;
               const lng = pos.coords.longitude;
               updateLocationCoordinates(lat, lng);
-              if (miniMapInstance.current && miniMapMarker.current) {
-                miniMapInstance.current.setView([lat, lng], 16);
-                miniMapMarker.current.setLatLng([lat, lng]);
+
+              // Update active map engine
+              if (mapEngine === 'google' && gmapInstance.current && gmapMarker.current) {
+                gmapInstance.current.setCenter({ lat, lng });
+                gmapInstance.current.setZoom(16);
+                gmapMarker.current.setPosition({ lat, lng });
+              } else if (osmInstance.current && osmMarker.current) {
+                osmInstance.current.setView([lat, lng], 16);
+                osmMarker.current.setLatLng([lat, lng]);
               }
               setLocatingGps(false);
             },
@@ -655,9 +834,13 @@
         setDetection(null);
         setPrediction(null);
 
-        if (miniMapInstance.current && miniMapMarker.current) {
-          miniMapInstance.current.setView([sample.lat, sample.lon], 15);
-          miniMapMarker.current.setLatLng([sample.lat, sample.lon]);
+        // Update active map position
+        if (mapEngine === 'google' && gmapInstance.current && gmapMarker.current) {
+          gmapInstance.current.setCenter({ lat: sample.lat, lng: sample.lon });
+          gmapMarker.current.setPosition({ lat: sample.lat, lng: sample.lon });
+        } else if (osmInstance.current && osmMarker.current) {
+          osmInstance.current.setView([sample.lat, sample.lon], 15);
+          osmMarker.current.setLatLng([sample.lat, sample.lon]);
         }
 
         setTimeout(() => {
@@ -762,7 +945,7 @@
               Report a Civic Issue in 60 Seconds
             </h2>
             <p className="mt-2 text-sm text-slate-600 max-w-xl mx-auto">
-              Snap a photo, pin the exact GPS spot on the map, and get an authentic, legal grievance acknowledgement slip with real-time tracking.
+              Snap a photo, pin the exact Google Maps GPS spot on the road, and get an authentic grievance acknowledgement slip with real-time tracking.
             </p>
           </div>
 
@@ -864,9 +1047,18 @@
                       Exact GPS Coordinates: {submittedIssue.latitude}° N, {submittedIssue.longitude}° E
                     </div>
                   </div>
-                  <div className="border border-slate-300 p-1.5 rounded-lg text-center bg-slate-50">
-                    <div className="text-[9px] font-mono text-slate-600 font-bold">DIGITAL QR VERIFIED</div>
-                    <div className="text-lg">📱 ▦</div>
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${submittedIssue.latitude},${submittedIssue.longitude}`}
+                      target="_blank"
+                      className="bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 hover:bg-blue-100"
+                    >
+                      <span>🗺️ View on Google Maps</span>
+                    </a>
+                    <div className="border border-slate-300 p-1.5 rounded-lg text-center bg-slate-50">
+                      <div className="text-[9px] font-mono text-slate-600 font-bold">DIGITAL QR</div>
+                      <div className="text-lg">📱 ▦</div>
+                    </div>
                   </div>
                 </div>
 
@@ -1039,31 +1231,58 @@
                 </div>
               )}
 
-              {/* INTERACTIVE MINI GPS PIN-DROP MAP */}
+              {/* DUAL GPS MINI MAP WITH GOOGLE MAPS API & OPENSTREETMAP TOGGLE */}
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-300">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-2">
                   <div>
-                    <label className="text-xs font-bold text-slate-900 block">
-                      2. Pin-Drop Precise GPS Location on Map <span className="text-red-500">*</span>
+                    <label className="text-xs font-bold text-slate-900 block flex items-center gap-2">
+                      <span>2. Precise GPS Marking on Map</span>
+                      <span className="text-red-500">*</span>
+                      <span className="bg-blue-100 text-blue-800 text-[10px] px-2 py-0.5 rounded font-bold">
+                        {mapEngine === 'google' && window.google ? 'Google Maps Mode' : 'High-Accuracy GIS'}
+                      </span>
                     </label>
                     <span className="text-[11px] text-slate-500">
-                      Click anywhere on the map or drag the red pin to set the exact spot for the repair crew.
+                      Drag the marker or click on the road to mark the exact spot.
                     </span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleLocateMe}
-                    disabled={locatingGps}
-                    className="bg-white hover:bg-slate-100 text-blue-700 border border-blue-300 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 shadow-sm"
-                  >
-                    <span>🎯</span>
-                    <span>{locatingGps ? 'Locating...' : 'Locate My GPS'}</span>
-                  </button>
+
+                  <div className="flex items-center gap-2">
+                    {/* Toggle Google Maps vs OpenStreetMap */}
+                    {googleApiKey ? (
+                      <button
+                        type="button"
+                        onClick={() => setMapEngine(mapEngine === 'google' ? 'osm' : 'google')}
+                        className="bg-white text-slate-700 border border-slate-300 px-2.5 py-1 rounded-lg text-xs font-bold hover:bg-slate-100"
+                      >
+                        Switch to {mapEngine === 'google' ? '🌐 OpenStreetMap' : '🗺️ Google Maps'}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={onOpenGmapsModal}
+                        className="bg-amber-100 text-amber-900 border border-amber-300 px-2.5 py-1 rounded-lg text-[11px] font-bold hover:bg-amber-200"
+                      >
+                        🔑 Add Google Maps Key
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={handleLocateMe}
+                      disabled={locatingGps}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1 shadow-sm"
+                    >
+                      <span>🎯</span>
+                      <span>{locatingGps ? 'Locating...' : 'Locate My GPS'}</span>
+                    </button>
+                  </div>
                 </div>
 
+                {/* Map Container */}
                 <div
-                  ref={miniMapRef}
-                  className="w-full h-52 rounded-xl border border-slate-300 overflow-hidden shadow-inner mb-3"
+                  ref={miniMapContainerRef}
+                  className="w-full h-56 rounded-xl border border-slate-300 overflow-hidden shadow-inner mb-3 bg-slate-200"
                 ></div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
@@ -1209,16 +1428,25 @@
                   <p className="text-xs text-slate-400 mt-1">{issue.address}</p>
                 </div>
 
-                <button
-                  onClick={() => {
-                    onUpvote(issue.id);
-                    setUpvoted(true);
-                  }}
-                  disabled={upvoted}
-                  className="bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold px-4 py-2 rounded-xl border border-slate-700 self-start"
-                >
-                  👍 {upvoted ? 'Upvoted (+1)' : 'Me Too / Impacted'} ({issue.upvotes})
-                </button>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={`https://www.google.com/maps/dir/?api=1&destination=${issue.latitude},${issue.longitude}`}
+                    target="_blank"
+                    className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1 shadow"
+                  >
+                    <span>🧭 Google Maps Route</span>
+                  </a>
+                  <button
+                    onClick={() => {
+                      onUpvote(issue.id);
+                      setUpvoted(true);
+                    }}
+                    disabled={upvoted}
+                    className="bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold px-4 py-2 rounded-xl border border-slate-700"
+                  >
+                    👍 {upvoted ? 'Upvoted (+1)' : 'Me Too / Impacted'} ({issue.upvotes})
+                  </button>
+                </div>
               </div>
 
               <div className="p-6 md:p-8 space-y-6">
@@ -1322,7 +1550,6 @@
             </p>
           </div>
 
-          {/* Key Weather Metrics */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
               <div className="text-xs font-bold text-slate-500 uppercase">24-Hour Rainfall Forecast</div>
@@ -1343,7 +1570,6 @@
             </div>
           </div>
 
-          {/* Dynamic Risk Table connected to database */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="p-4 bg-slate-900 text-white font-bold text-sm flex justify-between items-center">
               <span>Critical Arterial Road Risk Watchlist (Connected to Live DB)</span>
@@ -1370,11 +1596,10 @@
       );
     }
 
-    // ==============================================================
-    // 4. WARD SLA PERFORMANCE LEADERBOARD (DYNAMICALLY CONNECTED)
-    // ==============================================================
+    // ==========================================
+    // 4. WARD SLA PERFORMANCE LEADERBOARD
+    // ==========================================
     function WardLeaderboardView({ issues }) {
-      // Dynamic computation by ward
       const wardMap = {};
       const defaultWards = [
         "Ward 08 - North Gate",
@@ -1465,11 +1690,11 @@
       );
     }
 
-    // ==============================================================
-    // 5. TAXPAYER ROI & PREVENTIVE SAVINGS (INDIAN RUPEES ₹)
-    // ==============================================================
+    // ==========================================
+    // 5. TAXPAYER ROI & PREVENTIVE SAVINGS (INR)
+    // ==========================================
     function TaxpayerRoiView({ issues }) {
-      const resolvedOrProactiveCount = issues.length * 28; // Multiplier representing city scale
+      const resolvedOrProactiveCount = issues.length * 28;
       const [customCount, setCustomCount] = useState(resolvedOrProactiveCount);
 
       const costPerEarly = 1250;
@@ -1554,7 +1779,7 @@
     // ==========================================
     // 6. MUNICIPAL ICCC CONTROL CENTER VIEW
     // ==========================================
-    function IcccView({ issues, onAssign, onResolve, onSelectSrn }) {
+    function IcccView({ issues, googleApiKey, gmapsLoaded, onAssign, onResolve, onSelectSrn }) {
       const [filterDept, setFilterDept] = useState('All');
       const [filterStatus, setFilterStatus] = useState('All');
       const [viewMode, setViewMode] = useState('table');
@@ -1626,7 +1851,7 @@
 
           {viewMode === 'map' ? (
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-              <MapComponent issues={filtered} />
+              <CityMapComponent issues={filtered} googleApiKey={googleApiKey} gmapsLoaded={gmapsLoaded} />
             </div>
           ) : (
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -1807,43 +2032,111 @@
       );
     }
 
-    // Leaflet Main City Map Component
-    function MapComponent({ issues }) {
-      const mapRef = useRef(null);
-      const leafletMap = useRef(null);
+    // City Map Component with Google Maps & OpenStreetMap Dual Support
+    function CityMapComponent({ issues, googleApiKey, gmapsLoaded }) {
+      const mapContainerRef = useRef(null);
+      const [useGoogle, setUseGoogle] = useState(() => Boolean(googleApiKey && window.google));
+      const gmapRef = useRef(null);
+      const osmRef = useRef(null);
       const markersGroup = useRef([]);
 
       useEffect(() => {
-        if (!mapRef.current || !window.L) return;
+        if (!mapContainerRef.current) return;
 
-        if (!leafletMap.current) {
-          const map = window.L.map(mapRef.current).setView([12.9716, 77.5946], 13);
-          window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-          leafletMap.current = map;
+        // 1. Google Maps Mode
+        if (useGoogle && window.google && window.google.maps) {
+          try {
+            if (!gmapRef.current) {
+              const map = new window.google.maps.Map(mapContainerRef.current, {
+                center: { lat: 12.9716, lng: 77.5946 },
+                zoom: 13,
+                mapTypeId: 'roadmap',
+                mapTypeControl: true
+              });
+
+              // Add live traffic layer
+              const trafficLayer = new window.google.maps.TrafficLayer();
+              trafficLayer.setMap(map);
+
+              gmapRef.current = map;
+            }
+
+            const map = gmapRef.current;
+            issues.forEach(issue => {
+              if (!issue.latitude || !issue.longitude) return;
+              const marker = new window.google.maps.Marker({
+                position: { lat: issue.latitude, lng: issue.longitude },
+                map: map,
+                title: `${issue.srn} - ${issue.type}`
+              });
+
+              const infoWindow = new window.google.maps.InfoWindow({
+                content: `<div style="font-family:sans-serif;padding:4px;">
+                  <strong style="color:#2563eb;">${issue.srn}</strong><br/>
+                  <strong>${issue.type}</strong><br/>
+                  Severity: ${issue.severity}/100<br/>
+                  ${issue.ward_number}<br/>
+                  <a href="https://www.google.com/maps/dir/?api=1&destination=${issue.latitude},${issue.longitude}" target="_blank" style="color:#1d4ed8;font-weight:bold;text-decoration:underline;">Directions &rarr;</a>
+                </div>`
+              });
+
+              marker.addListener('click', () => {
+                infoWindow.open(map, marker);
+              });
+            });
+            return;
+          } catch (e) {
+            console.warn("Gmaps init failed, switching to OSM", e);
+            setUseGoogle(false);
+          }
         }
 
-        const map = leafletMap.current;
+        // 2. OpenStreetMap Leaflet Mode
+        if (window.L) {
+          if (!osmRef.current) {
+            const map = window.L.map(mapContainerRef.current).setView([12.9716, 77.5946], 13);
+            window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+            osmRef.current = map;
+          }
 
-        // Clear existing markers
-        markersGroup.current.forEach(m => map.removeLayer(m));
-        markersGroup.current = [];
+          const map = osmRef.current;
+          markersGroup.current.forEach(m => map.removeLayer(m));
+          markersGroup.current = [];
 
-        issues.forEach(issue => {
-          if (!issue.latitude || !issue.longitude) return;
-          const color = issue.status === 'Resolved' ? '#10b981' : issue.severity >= 80 ? '#ef4444' : '#f59e0b';
-          const icon = window.L.divIcon({
-            className: 'custom-pin',
-            html: `<div style="background:${color};width:26px;height:26px;border-radius:50%;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);color:white;font-weight:bold;font-size:11px;display:flex;align-items:center;justify-content:center;">${issue.severity >= 80 ? '!' : '●'}</div>`,
-            iconSize: [26, 26]
+          issues.forEach(issue => {
+            if (!issue.latitude || !issue.longitude) return;
+            const color = issue.status === 'Resolved' ? '#10b981' : issue.severity >= 80 ? '#ef4444' : '#f59e0b';
+            const icon = window.L.divIcon({
+              className: 'custom-pin',
+              html: `<div style="background:${color};width:26px;height:26px;border-radius:50%;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);color:white;font-weight:bold;font-size:11px;display:flex;align-items:center;justify-content:center;">${issue.severity >= 80 ? '!' : '●'}</div>`,
+              iconSize: [26, 26]
+            });
+            const marker = window.L.marker([issue.latitude, issue.longitude], { icon })
+              .addTo(map)
+              .bindPopup(`<strong>${issue.srn}</strong><br/>${issue.type}<br/>Severity: ${issue.severity}/100<br/>${issue.ward_number}<br/><a href="https://www.google.com/maps/dir/?api=1&destination=${issue.latitude},${issue.longitude}" target="_blank" style="color:#2563eb;font-weight:bold;">Google Maps Directions &rarr;</a>`);
+            markersGroup.current.push(marker);
           });
-          const marker = window.L.marker([issue.latitude, issue.longitude], { icon })
-            .addTo(map)
-            .bindPopup(`<strong>${issue.srn}</strong><br/>${issue.type}<br/>Severity: ${issue.severity}/100<br/>${issue.ward_number}`);
-          markersGroup.current.push(marker);
-        });
-      }, [issues]);
+        }
+      }, [useGoogle, gmapsLoaded, issues]);
 
-      return <div ref={mapRef} style={{ width: '100%', height: '450px', borderRadius: '1rem' }}></div>;
+      return (
+        <div>
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-xs font-bold text-slate-700">
+              GIS Engine: {useGoogle && window.google ? '🗺️ Google Maps (with Live Traffic)' : '🌐 OpenStreetMap Tile Layer'}
+            </span>
+            {googleApiKey && (
+              <button
+                onClick={() => setUseGoogle(!useGoogle)}
+                className="text-xs text-blue-600 hover:underline font-bold"
+              >
+                Switch to {useGoogle ? 'OpenStreetMap' : 'Google Maps'}
+              </button>
+            )}
+          </div>
+          <div ref={mapContainerRef} style={{ width: '100%', height: '450px', borderRadius: '1rem' }}></div>
+        </div>
+      );
     }
 
     // Render Root
