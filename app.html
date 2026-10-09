@@ -27,7 +27,7 @@
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
 
-    // Initial Mock Grievances matching the project blueprint
+    // Initial Mock Grievances
     const INITIAL_ISSUES = [
       {
         id: "issue-1",
@@ -42,6 +42,7 @@
         status: "Assigned",
         upvotes: 14,
         image_url: "https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?w=600&auto=format&fit=crop&q=80",
+        after_image_url: "https://images.unsplash.com/photo-1584463699042-3a339a1a5b67?w=600&auto=format&fit=crop&q=80",
         created_at: "14 hours ago",
         sla_hours: 24,
         prediction: {
@@ -75,6 +76,7 @@
         status: "In Progress",
         upvotes: 8,
         image_url: "https://images.unsplash.com/photo-1605600659873-d808a13e4d2a?w=600&auto=format&fit=crop&q=80",
+        after_image_url: "https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?w=600&auto=format&fit=crop&q=80",
         created_at: "22 hours ago",
         sla_hours: 48,
         prediction: {
@@ -108,6 +110,7 @@
         status: "Submitted",
         upvotes: 26,
         image_url: "https://images.unsplash.com/photo-1547683905-f686c993aae5?w=600&auto=format&fit=crop&q=80",
+        after_image_url: null,
         created_at: "3 hours ago",
         sla_hours: 12,
         prediction: {
@@ -135,6 +138,7 @@
         status: "Resolved",
         upvotes: 3,
         image_url: "https://images.unsplash.com/photo-1508873696983-2df5293cb32f?w=600&auto=format&fit=crop&q=80",
+        after_image_url: "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&auto=format&fit=crop&q=80",
         created_at: "2 days ago",
         sla_hours: 72,
         prediction: {
@@ -158,33 +162,56 @@
       }
     ];
 
+    // Master App Component
     function App() {
-      const [activeTab, setActiveTab] = useState('citizen');
+      const [activeTab, setActiveTab] = useState('citizen'); // 'citizen' | 'tracker' | 'radar' | 'leaderboard' | 'roi' | 'iccc'
       const [issues, setIssues] = useState(INITIAL_ISSUES);
       const [trackedSrn, setTrackedSrn] = useState('CIVIC-W12-2026-8419');
+      const [showAlertBanner, setShowAlertBanner] = useState(true);
 
       return (
         <div className="min-h-screen flex flex-col">
-          {/* Official Gov Header */}
-          <header className="border-b border-slate-200 bg-white shadow-sm sticky top-0 z-50">
-            <div className="bg-slate-900 text-slate-300 text-xs px-4 py-1.5 flex flex-wrap justify-between items-center border-b border-slate-800">
-              <div className="flex items-center space-x-3">
-                <span className="flex items-center space-x-1.5 font-bold text-amber-400">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                  <span>MUNICIPAL CORPORATION OF SMART CITY</span>
-                </span>
-                <span className="hidden md:inline text-slate-600">|</span>
-                <span className="hidden md:inline text-slate-400">Unified Grievance Redressal & Predictive AI Platform</span>
-              </div>
-              <div className="flex items-center space-x-4 font-mono text-xs">
-                <span>Toll-Free Helpline: <strong className="text-white">1913</strong> / <strong className="text-white">112</strong></span>
-                <span className="text-amber-400 font-semibold bg-amber-950/70 px-2 py-0.5 rounded border border-amber-800/50">
-                  Smart City Mission
-                </span>
-              </div>
+          {/* Top Emergency & Helpline Bar */}
+          <div className="bg-slate-900 text-slate-300 text-xs px-4 py-1.5 flex flex-wrap justify-between items-center border-b border-slate-800">
+            <div className="flex items-center space-x-3">
+              <span className="flex items-center space-x-1.5 font-bold text-amber-400">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>MUNICIPAL CORPORATION OF SMART CITY</span>
+              </span>
+              <span className="hidden md:inline text-slate-600">|</span>
+              <span className="hidden md:inline text-slate-400">Unified Grievance Redressal & Predictive AI System</span>
             </div>
+            <div className="flex items-center space-x-4 font-mono text-xs">
+              <span>Toll-Free Helpline: <strong className="text-white">1913</strong> / <strong className="text-white">112</strong></span>
+              <span className="text-amber-400 font-semibold bg-amber-950/70 px-2 py-0.5 rounded border border-amber-800/50">
+                MoHUA Smart Cities Mission 2.0
+              </span>
+            </div>
+          </div>
 
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          {/* Monsoon & Flood Early Warning Ticker */}
+          {showAlertBanner && (
+            <div className="bg-gradient-to-r from-amber-600 via-orange-600 to-rose-600 text-white text-xs px-4 py-2 font-medium flex items-center justify-between shadow-sm">
+              <div className="flex items-center space-x-2">
+                <span className="bg-black/30 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider">
+                  ⚠️ MONSOON WATCH
+                </span>
+                <span>
+                  <strong>Open-Meteo Alert:</strong> 34.5mm rainfall predicted next 6 hours in Indiranagar & Seshadripuram. 3 underpasses flagged for preventive de-watering pumps.
+                </span>
+              </div>
+              <button
+                onClick={() => setActiveTab('radar')}
+                className="underline hover:text-amber-100 font-bold ml-4 text-[11px] whitespace-nowrap"
+              >
+                View Risk Radar →
+              </button>
+            </div>
+          )}
+
+          {/* Main Official Header & Navigation */}
+          <header className="border-b border-slate-200 bg-white shadow-sm sticky top-0 z-50">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
               <div className="flex items-center space-x-3.5">
                 <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-900 to-slate-900 flex items-center justify-center text-white shadow font-black text-xl border border-blue-700/40">
                   🏛️
@@ -195,43 +222,72 @@
                       CivicPulse <span className="text-blue-600">AI</span>
                     </h1>
                     <span className="bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-200">
-                      OFFICIAL PORTAL
+                      GOV PORTAL
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 font-medium">
-                    Automated Computer Vision Grievance Triage & Predictive Risk Architecture
+                    National Smart Cities Computer Vision Grievance Triage & Predictive Risk System
                   </p>
                 </div>
               </div>
 
-              {/* View Switcher */}
-              <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-semibold">
+              {/* Comprehensive Top Menu Bar */}
+              <nav className="flex items-center flex-wrap gap-1 bg-slate-100 p-1.5 rounded-xl border border-slate-200 text-xs font-semibold">
                 <button
                   onClick={() => setActiveTab('citizen')}
-                  className={`px-4 py-2 rounded-lg transition ${
-                    activeTab === 'citizen' ? 'bg-white text-blue-700 shadow-sm border border-slate-200 font-bold' : 'text-slate-600 hover:text-slate-900'
+                  className={`px-3 py-1.5 rounded-lg transition ${
+                    activeTab === 'citizen' ? 'bg-white text-blue-700 shadow-sm border font-bold' : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  📍 Citizen Report
+                  📍 Report Issue
                 </button>
+
                 <button
                   onClick={() => setActiveTab('tracker')}
-                  className={`px-4 py-2 rounded-lg transition ${
-                    activeTab === 'tracker' ? 'bg-white text-blue-700 shadow-sm border border-slate-200 font-bold' : 'text-slate-600 hover:text-slate-900'
+                  className={`px-3 py-1.5 rounded-lg transition ${
+                    activeTab === 'tracker' ? 'bg-white text-blue-700 shadow-sm border font-bold' : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  🔍 Track Grievance
+                  🔍 Track SRN
                 </button>
+
+                <button
+                  onClick={() => setActiveTab('radar')}
+                  className={`px-3 py-1.5 rounded-lg transition ${
+                    activeTab === 'radar' ? 'bg-white text-blue-700 shadow-sm border font-bold' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  🌧️ Risk Radar
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('leaderboard')}
+                  className={`px-3 py-1.5 rounded-lg transition ${
+                    activeTab === 'leaderboard' ? 'bg-white text-blue-700 shadow-sm border font-bold' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  🏆 Ward Leaderboard
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('roi')}
+                  className={`px-3 py-1.5 rounded-lg transition ${
+                    activeTab === 'roi' ? 'bg-white text-blue-700 shadow-sm border font-bold' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  💰 Taxpayer ROI
+                </button>
+
                 <button
                   onClick={() => setActiveTab('iccc')}
-                  className={`px-4 py-2 rounded-lg transition flex items-center space-x-1.5 ${
-                    activeTab === 'iccc' ? 'bg-slate-900 text-amber-400 font-bold shadow' : 'text-slate-600 hover:text-slate-900'
+                  className={`px-3.5 py-1.5 rounded-lg transition flex items-center space-x-1.5 ${
+                    activeTab === 'iccc' ? 'bg-slate-900 text-amber-400 font-bold shadow' : 'text-slate-700 hover:text-slate-900'
                   }`}
                 >
                   <span>🏢 Municipal ICCC</span>
                   <span className="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
                 </button>
-              </div>
+              </nav>
             </div>
           </header>
 
@@ -260,6 +316,18 @@
               />
             )}
 
+            {activeTab === 'radar' && (
+              <MonsoonRadarView issues={issues} />
+            )}
+
+            {activeTab === 'leaderboard' && (
+              <WardLeaderboardView issues={issues} />
+            )}
+
+            {activeTab === 'roi' && (
+              <TaxpayerRoiView issues={issues} />
+            )}
+
             {activeTab === 'iccc' && (
               <IcccView
                 issues={issues}
@@ -279,6 +347,7 @@
                   setIssues(issues.map(i => i.id === id ? {
                     ...i,
                     status: 'Resolved',
+                    after_image_url: "https://images.unsplash.com/photo-1584463699042-3a339a1a5b67?w=600&auto=format&fit=crop&q=80",
                     action: {
                       ...i.action,
                       resolved_time: 'Just Now',
@@ -298,13 +367,13 @@
           <footer className="bg-slate-900 text-slate-400 text-xs py-8 border-t border-slate-800 mt-12">
             <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4">
               <div>
-                <p className="font-bold text-slate-200">CivicPulse AI — Smart City Municipal Administration</p>
-                <p className="text-slate-500 mt-0.5">YOLOv8 Computer Vision Inference + Open-Meteo Weather Risk Intelligence</p>
+                <p className="font-bold text-slate-200">CivicPulse AI — Smart City Municipal Operations System</p>
+                <p className="text-slate-500 mt-0.5">Pretrained YOLOv8 Computer Vision + Open-Meteo Precipitation Telemetry</p>
               </div>
               <div className="flex items-center space-x-4 text-slate-400">
                 <span>Built by <strong>Team Knox Drift</strong> (Shyam, Balaji, Sujal, Akhil)</span>
                 <span>•</span>
-                <span>Ministry of Housing & Urban Affairs Compliance</span>
+                <span>Ministry of Housing & Urban Affairs Standards</span>
               </div>
             </div>
           </footer>
@@ -313,16 +382,18 @@
     }
 
     // ==========================================
-    // CITIZEN REPORT VIEW
+    // 1. CITIZEN REPORT VIEW (WITH VOICE INPUT)
     // ==========================================
     function CitizenView({ onIssueCreated, onTrack }) {
       const [photoUrl, setPhotoUrl] = useState('');
       const [address, setAddress] = useState('Indiranagar 100ft Road, Ward 12');
       const [ward, setWard] = useState('Ward 12 - Indiranagar');
+      const [description, setDescription] = useState('');
       const [analyzing, setAnalyzing] = useState(false);
       const [detection, setDetection] = useState(null);
       const [prediction, setPrediction] = useState(null);
       const [submittedIssue, setSubmittedIssue] = useState(null);
+      const [voiceListening, setVoiceListening] = useState(false);
 
       const samplePhotos = [
         { label: "Pothole on Arterial Road", url: "https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?w=600&auto=format&fit=crop&q=80", type: "Pothole", dept: "PWD / Roads & Bridges", sev: 82, rain: 24.5 },
@@ -375,6 +446,17 @@
         }
       };
 
+      const handleVoiceInput = () => {
+        setVoiceListening(true);
+        setTimeout(() => {
+          setVoiceListening(false);
+          setDescription("Deep crater pothole near Indiranagar metro station pillar 42. Causes two-wheeler skids especially in rain.");
+          if (!photoUrl) {
+            handleSelectPhoto(samplePhotos[0]);
+          }
+        }, 1500);
+      };
+
       const handleSubmit = (e) => {
         e.preventDefault();
         const rand = Math.floor(1000 + Math.random() * 9000);
@@ -392,6 +474,7 @@
           status: "Submitted",
           upvotes: 1,
           image_url: photoUrl,
+          after_image_url: null,
           created_at: "Just Now",
           sla_hours: prediction.sla_hours,
           prediction,
@@ -414,7 +497,7 @@
               Report a Civic Issue in 60 Seconds
             </h2>
             <p className="mt-2 text-sm text-slate-600 max-w-xl mx-auto">
-              Upload a photo. Pretrained computer vision classifies the hazard, links Open-Meteo precipitation models, and alerts the ward engineer.
+              Snap a photo or dictate by voice. Computer vision classifies the hazard, connects Open-Meteo precipitation models, and alerts the ward junior engineer.
             </p>
           </div>
 
@@ -470,13 +553,36 @@
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 md:p-8 space-y-6">
+              {/* Voice Complaint Button */}
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center text-lg">
+                    🎙️
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-900">Multilingual Voice Grievance Assistant</h4>
+                    <p className="text-[11px] text-slate-500">Tap to speak in English, Hindi, or Regional languages.</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleVoiceInput}
+                  disabled={voiceListening}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold text-white transition shadow ${
+                    voiceListening ? 'bg-rose-500 animate-pulse' : 'bg-blue-600 hover:bg-blue-700'
+                  }`}
+                >
+                  {voiceListening ? 'Listening...' : 'Tap & Speak Complaint'}
+                </button>
+              </div>
+
               {/* Photo Input */}
               <div>
                 <label className="block text-sm font-bold text-slate-900 mb-2">
                   1. Capture or Select Photo of Civic Issue <span className="text-red-500">*</span>
                 </label>
 
-                {/* Quick Sample Selector for Instant Hackathon Testing */}
+                {/* Quick Sample Selector */}
                 <div className="mb-4">
                   <div className="text-xs font-semibold text-slate-500 mb-2">Quick Hackathon Test Photos:</div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -551,7 +657,6 @@
                     </div>
                   </div>
 
-                  {/* 7-Day Risk & Weather */}
                   {prediction && (
                     <div className="mt-4 pt-3 border-t border-blue-200">
                       <div className="text-xs font-bold text-slate-700 mb-2">
@@ -603,6 +708,18 @@
                 </div>
               </div>
 
+              {/* Description */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Hazard / Landmark Description</label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Mention landmarks, nearby schools, or accident risks..."
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm"
+                  rows={2}
+                ></textarea>
+              </div>
+
               {/* Submit */}
               <button
                 type="submit"
@@ -620,7 +737,7 @@
     }
 
     // ==========================================
-    // GRIEVANCE TRACKER VIEW
+    // 2. GRIEVANCE TRACKER (BEFORE / AFTER PROOF)
     // ==========================================
     function TrackerView({ initialSrn, issues, onUpvote }) {
       const [srnInput, setSrnInput] = useState(initialSrn || 'CIVIC-W12-2026-8419');
@@ -723,6 +840,36 @@
                   </div>
                 </div>
 
+                {/* Before / After Photo Comparison */}
+                <div className="pt-4 border-t border-slate-200">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
+                    Audit Evidence: Before & After Resolution Proof
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="border border-slate-200 rounded-xl overflow-hidden bg-slate-100">
+                      <div className="bg-slate-800 text-white text-[10px] font-bold px-3 py-1 uppercase tracking-wider">
+                        Initial Citizen Evidence (Before)
+                      </div>
+                      <img src={issue.image_url} alt="Before" className="w-full h-44 object-cover" />
+                    </div>
+
+                    <div className="border border-slate-200 rounded-xl overflow-hidden bg-slate-100">
+                      <div className="bg-emerald-800 text-white text-[10px] font-bold px-3 py-1 uppercase tracking-wider">
+                        Field Repair Proof of Work (After)
+                      </div>
+                      {issue.after_image_url ? (
+                        <img src={issue.after_image_url} alt="After" className="w-full h-44 object-cover" />
+                      ) : (
+                        <div className="h-44 flex flex-col items-center justify-center text-slate-400 p-4 text-center">
+                          <span className="text-2xl mb-1">⏳</span>
+                          <span className="text-xs font-bold">Field repair in progress</span>
+                          <span className="text-[10px]">Photo proof pending junior engineer upload</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-slate-200">
                   <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs space-y-2">
                     <div className="font-bold text-slate-800">🛡️ Municipal Assignments</div>
@@ -739,13 +886,6 @@
                     <div>3-Day Escalation: <strong className="text-orange-600">{issue.prediction?.severity_in_3_days}/100</strong></div>
                   </div>
                 </div>
-
-                {issue.image_url && (
-                  <div className="pt-4 border-t border-slate-200">
-                    <div className="text-xs font-bold text-slate-500 uppercase mb-2">Evidence Photo</div>
-                    <img src={issue.image_url} alt="" className="w-64 h-40 object-cover rounded-xl border" />
-                  </div>
-                )}
               </div>
             </div>
           )}
@@ -754,14 +894,234 @@
     }
 
     // ==========================================
-    // MUNICIPAL ICCC CONTROL CENTER VIEW
+    // 3. MONSOON WATCH & RISK RADAR VIEW
+    // ==========================================
+    function MonsoonRadarView({ issues }) {
+      return (
+        <div className="max-w-6xl mx-auto py-8 px-4 space-y-6">
+          <div className="text-center max-w-2xl mx-auto mb-8">
+            <span className="inline-block px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200 mb-2">
+              🌧️ Open-Meteo Precipitation Telemetry
+            </span>
+            <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">
+              Citywide Monsoon & Flood Risk Radar
+            </h2>
+            <p className="text-xs text-slate-600 mt-1">
+              Cross-referencing live meteorological telemetry with computer-vision road reports to prevent vehicle submergence and infrastructure washouts.
+            </p>
+          </div>
+
+          {/* Key Weather Metrics */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+              <div className="text-xs font-bold text-slate-500 uppercase">24-Hour Rainfall Forecast</div>
+              <div className="text-3xl font-black text-blue-600 mt-1">38.4 mm</div>
+              <div className="text-[11px] text-slate-500 mt-1">Moderate to heavy monsoon showers expected</div>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-rose-200 shadow-sm">
+              <div className="text-xs font-bold text-rose-600 uppercase">High Risk Low-Lying Spots</div>
+              <div className="text-3xl font-black text-rose-600 mt-1">4 Underpasses</div>
+              <div className="text-[11px] text-rose-600 mt-1">Waterlogging risk exceeds 85% threshold</div>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-emerald-200 shadow-sm">
+              <div className="text-xs font-bold text-emerald-600 uppercase">Preventive Pump Deployments</div>
+              <div className="text-3xl font-black text-emerald-600 mt-1">8 High-Power Pumps</div>
+              <div className="text-[11px] text-emerald-600 mt-1">Positioned at Seshadripuram & Indiranagar</div>
+            </div>
+          </div>
+
+          {/* Risk Table */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="p-4 bg-slate-900 text-white font-bold text-sm flex justify-between items-center">
+              <span>Critical Arterial Road Risk Watchlist</span>
+              <span className="text-xs bg-amber-500 text-slate-950 px-2 py-0.5 rounded font-black">LIVE ADVISORY</span>
+            </div>
+            <div className="divide-y divide-slate-200 text-xs">
+              <div className="p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
+                <div>
+                  <div className="font-bold text-slate-900 text-sm">Railway Underpass, Seshadripuram (Ward 08)</div>
+                  <div className="text-slate-500">Choked storm drainage + 38mm expected rain. Vehicle submergence hazard.</div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="bg-rose-100 text-rose-800 px-2.5 py-1 rounded font-bold">Severity: 98/100</span>
+                  <span className="bg-blue-600 text-white px-3 py-1 rounded-lg font-bold">Deploy Suction Unit</span>
+                </div>
+              </div>
+
+              <div className="p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
+                <div>
+                  <div className="font-bold text-slate-900 text-sm">Indiranagar 100ft Road Metro Pillar 42 (Ward 12)</div>
+                  <div className="text-slate-500">Large pothole crater. Impending rain will erode base asphalt within 24h.</div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="bg-amber-100 text-amber-800 px-2.5 py-1 rounded font-bold">Severity: 92/100</span>
+                  <span className="bg-blue-600 text-white px-3 py-1 rounded-lg font-bold">Cold-Mix Patch Dispatched</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ==========================================
+    // 4. WARD SLA PERFORMANCE LEADERBOARD
+    // ==========================================
+    function WardLeaderboardView() {
+      const wards = [
+        { rank: 1, name: "Ward 08 - North Gate", resolutionRate: "97.4%", avgHours: "14h", active: 2, resolved: 88, status: "Top Performer", badge: "🥇" },
+        { rank: 2, name: "Ward 12 - Indiranagar", resolutionRate: "92.1%", avgHours: "21h", active: 5, resolved: 74, status: "Good Standing", badge: "🥈" },
+        { rank: 3, name: "Ward 15 - South East", resolutionRate: "88.6%", avgHours: "28h", active: 4, resolved: 61, status: "Good Standing", badge: "🥉" },
+        { rank: 4, name: "Ward 04 - West Central", resolutionRate: "81.0%", avgHours: "38h", active: 8, resolved: 49, status: "Needs Improvement", badge: "⚠️" },
+        { rank: 5, name: "Ward 14 - Market East", resolutionRate: "74.5%", avgHours: "49h", active: 11, resolved: 36, status: "SLA Warning Issued", badge: "🚨" },
+      ];
+
+      return (
+        <div className="max-w-5xl mx-auto py-8 px-4 space-y-6">
+          <div className="text-center max-w-2xl mx-auto mb-8">
+            <span className="inline-block px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 mb-2">
+              🏆 Municipal Accountability
+            </span>
+            <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">
+              Ward SLA Performance Scorecard
+            </h2>
+            <p className="text-xs text-slate-600 mt-1">
+              Public rankings of municipal zones based on average turnaround speed and SLA compliance guarantees.
+            </p>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="p-4 bg-slate-900 text-white font-bold text-sm">
+              Official Municipal Corporation Zone Standings
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-100 text-slate-700 uppercase font-bold border-b border-slate-200">
+                  <tr>
+                    <th className="py-3 px-4">Rank</th>
+                    <th className="py-3 px-4">Municipal Ward</th>
+                    <th className="py-3 px-4">Resolution Rate</th>
+                    <th className="py-3 px-4">Avg Turnaround</th>
+                    <th className="py-3 px-4">Active / Resolved</th>
+                    <th className="py-3 px-4 text-right">Commission Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {wards.map((w) => (
+                    <tr key={w.rank} className="hover:bg-slate-50 transition">
+                      <td className="py-3 px-4 font-bold text-sm">
+                        <span>{w.badge} #{w.rank}</span>
+                      </td>
+                      <td className="py-3 px-4 font-bold text-slate-900">{w.name}</td>
+                      <td className="py-3 px-4 font-bold text-emerald-600 text-sm">{w.resolutionRate}</td>
+                      <td className="py-3 px-4 font-mono font-semibold">{w.avgHours}</td>
+                      <td className="py-3 px-4 text-slate-600">{w.active} open / {w.resolved} closed</td>
+                      <td className="py-3 px-4 text-right">
+                        <span className={`px-2.5 py-1 rounded-full font-bold ${
+                          w.rank === 1 ? 'bg-emerald-100 text-emerald-800' :
+                          w.rank === 5 ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-800'
+                        }`}>
+                          {w.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ==========================================
+    // 5. TAXPAYER ROI & PREVENTIVE SAVINGS
+    // ==========================================
+    function TaxpayerRoiView() {
+      const [earlyFixedCount, setEarlyFixedCount] = useState(140);
+
+      // Economics:
+      // Early cold-mix patch: $15 (Rs. 1,200)
+      // Neglected pothole crater + sub-base repair + accident settlement: $220 (Rs. 18,000)
+      const earlyCost = earlyFixedCount * 15;
+      const delayedCost = earlyFixedCount * 220;
+      const totalSaved = delayedCost - earlyCost;
+
+      return (
+        <div className="max-w-4xl mx-auto py-8 px-4 space-y-6">
+          <div className="text-center max-w-2xl mx-auto mb-8">
+            <span className="inline-block px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 mb-2">
+              💰 Digital Twin Economics
+            </span>
+            <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">
+              Taxpayer Savings & Preventative ROI
+            </h2>
+            <p className="text-xs text-slate-600 mt-1">
+              Validating Slide 11: "Predict problems before they become emergencies. Saves repair cost and reduces accidents."
+            </p>
+          </div>
+
+          <div className="bg-slate-900 text-white rounded-2xl p-6 sm:p-8 shadow-xl">
+            <div className="text-xs font-mono font-bold text-amber-400 uppercase tracking-wider mb-2">
+              Interactive City Budget Simulation
+            </div>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-6 border-b border-slate-800">
+              <div>
+                <span className="text-xs text-slate-400">Total Taxpayer Funds Saved This Quarter</span>
+                <div className="text-4xl font-black text-emerald-400 mt-1">
+                  ${totalSaved.toLocaleString()} <span className="text-sm font-semibold text-slate-400">(~₹{(totalSaved * 83).toLocaleString()})</span>
+                </div>
+              </div>
+              <div className="bg-slate-800 px-4 py-2 rounded-xl border border-slate-700 text-right">
+                <span className="text-[10px] uppercase text-slate-400 block font-bold">Accidents Prevented</span>
+                <span className="text-xl font-bold text-amber-400">{Math.round(earlyFixedCount * 0.42)} Incidents</span>
+              </div>
+            </div>
+
+            <div className="py-6 space-y-3">
+              <div className="flex justify-between text-xs font-semibold">
+                <label>Simulate Early Potholes Detected & Fixed within 24h:</label>
+                <span className="font-mono text-amber-400 font-bold">{earlyFixedCount} Repairs</span>
+              </div>
+              <input
+                type="range"
+                min="20"
+                max="500"
+                value={earlyFixedCount}
+                onChange={(e) => setEarlyFixedCount(Number(e.target.value))}
+                className="w-full accent-emerald-500 h-2 bg-slate-800 rounded-lg cursor-pointer"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-slate-800 text-xs">
+              <div className="bg-emerald-950/60 p-4 rounded-xl border border-emerald-800/60">
+                <span className="text-emerald-400 font-bold block mb-1">With CivicPulse AI (Proactive)</span>
+                <p className="text-slate-300">Total expenditure: <strong>${earlyCost.toLocaleString()}</strong></p>
+                <span className="text-[11px] text-slate-400 mt-1 block">Patched immediately using cold-mix asphalt before monsoon rains expand crater.</span>
+              </div>
+
+              <div className="bg-rose-950/60 p-4 rounded-xl border border-rose-800/60">
+                <span className="text-rose-400 font-bold block mb-1">Traditional Municipal Flow (Reactive)</span>
+                <p className="text-slate-300">Total expenditure: <strong>${delayedCost.toLocaleString()}</strong></p>
+                <span className="text-[11px] text-slate-400 mt-1 block">Neglected until crater damages vehicles, requiring full sub-base resurfacing.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ==========================================
+    // 6. MUNICIPAL ICCC CONTROL CENTER VIEW
     // ==========================================
     function IcccView({ issues, onAssign, onResolve, onSelectSrn }) {
       const [filterDept, setFilterDept] = useState('All');
       const [filterStatus, setFilterStatus] = useState('All');
-      const [viewMode, setViewMode] = useState('table'); // 'table' | 'map'
+      const [viewMode, setViewMode] = useState('table');
       const [modalIssue, setModalIssue] = useState(null);
-      const [modalMode, setModalMode] = useState(''); // 'assign' | 'resolve'
+      const [modalMode, setModalMode] = useState('');
       const [official, setOfficial] = useState('Er. R. Venkatesh (JE)');
       const [team, setTeam] = useState('PWD Rapid Response Unit 4');
       const [notes, setNotes] = useState('');
@@ -831,7 +1191,6 @@
               <MapComponent issues={filtered} />
             </div>
           ) : (
-            /* Table */
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap justify-between gap-3 text-xs">
                 <div className="flex gap-2">
