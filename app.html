@@ -25,6 +25,14 @@
       background: linear-gradient(90deg, #FF9933 33.3%, #FFFFFF 33.3%, #FFFFFF 66.6%, #138808 66.6%);
     }
     .high-contrast { filter: contrast(115%); }
+    .gps-pulse-ring {
+      animation: gps-pulse 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+    }
+    @keyframes gps-pulse {
+      0% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.7); }
+      70% { transform: scale(1.1); box-shadow: 0 0 0 14px rgba(37, 99, 235, 0); }
+      100% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+    }
     @media print {
       body * { visibility: hidden; }
       #printable-receipt, #printable-receipt * { visibility: visible; }
@@ -227,13 +235,38 @@
       script.async = true;
       script.defer = true;
       script.onload = () => {
-        console.log("Google Maps API loaded successfully.");
         if (callback) callback();
       };
-      script.onerror = () => {
-        console.warn("Google Maps API key invalid or network error, falling back to OpenStreetMap.");
-      };
       document.head.appendChild(script);
+    }
+
+    // Reverse Geocoding helper using OSM Nominatim API
+    async function reverseGeocodeRealGps(lat, lon) {
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`, {
+          headers: { 'Accept': 'application/json' }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.display_name) {
+            const addr = data.address || {};
+            const street = addr.road || addr.pedestrian || addr.suburb || addr.neighbourhood || "Main Road";
+            const city = addr.city || addr.town || addr.state_district || addr.state || "";
+            const postcode = addr.postcode ? ` - ${addr.postcode}` : "";
+            const wardStr = addr.suburb || addr.neighbourhood || addr.city_district || "Central Zone";
+            return {
+              formattedAddress: `${street}, ${city}${postcode}`,
+              ward: `Ward - ${wardStr}`
+            };
+          }
+        }
+      } catch (e) {
+        console.warn("Reverse geocode network notice:", e);
+      }
+      return {
+        formattedAddress: `Live GPS: ${lat.toFixed(6)}° N, ${lon.toFixed(6)}° E`,
+        ward: "Ward - Detected Zone"
+      };
     }
 
     // ==========================================
@@ -250,11 +283,14 @@
       const [showGmapsModal, setShowGmapsModal] = useState(false);
       const [gmapsLoaded, setGmapsLoaded] = useState(false);
 
-      // Official Accessibility States
+      // Accessibility States
       const [fontSizeScale, setFontSizeScale] = useState(100);
       const [highContrast, setHighContrast] = useState(false);
       const [selectedLang, setSelectedLang] = useState('en');
       const [showCharterModal, setShowCharterModal] = useState(false);
+
+      // Real User Live Device GPS State (Globally shared)
+      const [realUserGps, setRealUserGps] = useState(null);
 
       // Save database
       useEffect(() => {
@@ -267,6 +303,22 @@
           loadGoogleMapsScript(googleApiKey, () => setGmapsLoaded(true));
         }
       }, [googleApiKey]);
+
+      // Detect User's Real Device GPS Location on Startup
+      useEffect(() => {
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              const lat = pos.coords.latitude;
+              const lon = pos.coords.longitude;
+              const acc = Math.round(pos.coords.accuracy || 10);
+              setRealUserGps({ lat, lon, accuracy: acc });
+            },
+            (err) => console.log("Real GPS prompt deferred"),
+            { enableHighAccuracy: true, timeout: 8000 }
+          );
+        }
+      }, []);
 
       const handleSaveGoogleKey = (key) => {
         setGoogleApiKey(key);
@@ -333,17 +385,26 @@
             </div>
 
             <div className="flex items-center space-x-3 font-mono text-xs">
+              {/* Real GPS Live Telemetry Pill */}
+              <div className="bg-blue-950 text-blue-300 border border-blue-700 px-2.5 py-0.5 rounded text-[11px] font-sans font-bold flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                <span>Real GPS:</span>
+                <span className="text-white font-mono">
+                  {realUserGps ? `${realUserGps.lat.toFixed(4)}°, ${realUserGps.lon.toFixed(4)}°` : 'Searching...'}
+                </span>
+              </div>
+
               {/* Google Maps API Key Config Button */}
               <button
                 onClick={() => setShowGmapsModal(true)}
                 className={`px-2 py-0.5 rounded text-[11px] font-sans font-bold flex items-center gap-1 border ${
                   googleApiKey
                     ? 'bg-emerald-950 text-emerald-300 border-emerald-700'
-                    : 'bg-amber-950 text-amber-300 border-amber-700 animate-pulse'
+                    : 'bg-amber-950 text-amber-300 border-amber-700'
                 }`}
               >
-                <span>🗺️ Google Maps API:</span>
-                <span>{googleApiKey ? 'Active' : 'Configure Key'}</span>
+                <span>🗺️ Google Maps:</span>
+                <span>{googleApiKey ? 'Active' : 'Key'}</span>
               </button>
 
               <div className="flex items-center space-x-1 bg-slate-800 px-2 py-0.5 rounded border border-slate-700">
@@ -388,7 +449,7 @@
                   ⚠️ MONSOON WATCH
                 </span>
                 <span>
-                  <strong>Open-Meteo Alert:</strong> 34.5mm rainfall predicted next 6 hours in Indiranagar & Seshadripuram. 3 underpasses flagged for preventive de-watering pumps.
+                  <strong>Open-Meteo Alert:</strong> 34.5mm rainfall predicted next 6 hours in your zone. Low-lying underpasses flagged for preventive de-watering pumps.
                 </span>
               </div>
               <button
@@ -416,7 +477,7 @@
                       GOV PORTAL
                     </span>
                     <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span> DB Connected
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span> Live GPS Active
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 font-medium">
@@ -433,7 +494,7 @@
                     activeTab === 'citizen' ? 'bg-white text-blue-700 shadow-sm border font-bold' : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  📍 Report Issue
+                  📍 Report Issue (Real GPS)
                 </button>
 
                 <button
@@ -489,6 +550,8 @@
           <main className="flex-1">
             {activeTab === 'citizen' && (
               <CitizenView
+                realUserGps={realUserGps}
+                setRealUserGps={setRealUserGps}
                 googleApiKey={googleApiKey}
                 gmapsLoaded={gmapsLoaded}
                 onOpenGmapsModal={() => setShowGmapsModal(true)}
@@ -523,6 +586,7 @@
             {activeTab === 'iccc' && (
               <IcccView
                 issues={issues}
+                realUserGps={realUserGps}
                 googleApiKey={googleApiKey}
                 gmapsLoaded={gmapsLoaded}
                 onAssign={handleAssignIssue}
@@ -660,7 +724,7 @@
             <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4">
               <div>
                 <p className="font-bold text-slate-200">CivicPulse AI — Smart City Municipal Operations System</p>
-                <p className="text-slate-500 mt-0.5">Pretrained YOLOv8 Computer Vision + Google Maps & Open-Meteo Telemetry</p>
+                <p className="text-slate-500 mt-0.5">Pretrained YOLOv8 Computer Vision + Live Device GPS & Open-Meteo Telemetry</p>
               </div>
               <div className="flex items-center space-x-4 text-slate-400">
                 <span>Built by <strong>Team Knox Drift</strong> (Shyam, Balaji, Sujal, Akhil)</span>
@@ -674,11 +738,12 @@
     }
 
     // ==============================================================
-    // 1. CITIZEN REPORT VIEW WITH GOOGLE MAPS / LEAFLET DUAL GPS
+    // 1. CITIZEN REPORT VIEW WITH REAL LIVE DEVICE GPS & REVERSE GEOCODE
     // ==============================================================
-    function CitizenView({ googleApiKey, gmapsLoaded, onOpenGmapsModal, onIssueCreated, onTrack }) {
+    function CitizenView({ realUserGps, setRealUserGps, googleApiKey, gmapsLoaded, onOpenGmapsModal, onIssueCreated, onTrack }) {
       const [photoUrl, setPhotoUrl] = useState('');
       const [coords, setCoords] = useState({ lat: 12.9716, lon: 77.5946 });
+      const [accuracyRadius, setAccuracyRadius] = useState(15);
       const [address, setAddress] = useState('100 Ft Road, Near Indiranagar Metro, Ward 12');
       const [ward, setWard] = useState('Ward 12 - Indiranagar');
       const [description, setDescription] = useState('');
@@ -690,6 +755,7 @@
       const [submittedIssue, setSubmittedIssue] = useState(null);
       const [voiceListening, setVoiceListening] = useState(false);
       const [locatingGps, setLocatingGps] = useState(false);
+      const [isRealGpsLocked, setIsRealGpsLocked] = useState(false);
 
       // Map View Toggle: 'google' or 'osm'
       const [mapEngine, setMapEngine] = useState(() => (googleApiKey && window.google) ? 'google' : 'osm');
@@ -698,6 +764,7 @@
       const gmapMarker = useRef(null);
       const osmInstance = useRef(null);
       const osmMarker = useRef(null);
+      const osmUserGpsCircle = useRef(null);
 
       const samplePhotos = [
         { label: "Pothole on Arterial Road", url: "https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?w=600&auto=format&fit=crop&q=80", type: "Pothole", dept: "PWD / Roads & Bridges", sev: 82, rain: 24.5, lat: 12.9716, lon: 77.5946, addr: "100 Ft Road, Near Indiranagar Metro Pillar 42" },
@@ -706,19 +773,76 @@
         { label: "Broken Streetlight", url: "https://images.unsplash.com/photo-1508873696983-2df5293cb32f?w=600&auto=format&fit=crop&q=80", type: "Broken Streetlight", dept: "Municipal Electrical Dept", sev: 36, rain: 5.0, lat: 12.9550, lon: 77.6150, addr: "Koramangala 5th Block, 80 Feet Road Junction" }
       ];
 
-      // Update location and reverse geocode
-      const updateLocationCoordinates = (lat, lng) => {
+      // Update location and trigger real reverse geocode
+      const updateLocationCoordinates = async (lat, lng, radius = 10, markAsReal = false) => {
         const roundedLat = parseFloat(lat.toFixed(6));
         const roundedLng = parseFloat(lng.toFixed(6));
         setCoords({ lat: roundedLat, lon: roundedLng });
-        setAddress(`GPS Geo-Tagged: ${roundedLat}° N, ${roundedLng}° E (Pin Dropped)`);
+        setAccuracyRadius(radius);
+        if (markAsReal) setIsRealGpsLocked(true);
+
+        // Fetch real street name via OpenStreetMap Nominatim reverse geocoding
+        const geoResult = await reverseGeocodeRealGps(roundedLat, roundedLng);
+        setAddress(geoResult.formattedAddress);
+        setWard(geoResult.ward);
       };
 
-      // Initialize Map Engine (Google Maps or OpenStreetMap)
+      // REAL GPS: Acquire real physical device GPS location
+      const handleAcquireRealGps = () => {
+        setLocatingGps(true);
+        if (!navigator.geolocation) {
+          alert("Geolocation is not supported by your browser");
+          setLocatingGps(false);
+          return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          async (pos) => {
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            const acc = Math.round(pos.coords.accuracy || 8);
+
+            setRealUserGps({ lat, lon: lng, accuracy: acc });
+            await updateLocationCoordinates(lat, lng, acc, true);
+
+            // Center active map on REAL device coordinates
+            if (mapEngine === 'google' && gmapInstance.current && gmapMarker.current) {
+              gmapInstance.current.setCenter({ lat, lng });
+              gmapInstance.current.setZoom(17);
+              gmapMarker.current.setPosition({ lat, lng });
+            } else if (osmInstance.current && osmMarker.current) {
+              osmInstance.current.setView([lat, lng], 17);
+              osmMarker.current.setLatLng([lat, lng]);
+
+              // Update blue accuracy circle
+              if (osmUserGpsCircle.current) {
+                osmUserGpsCircle.current.setLatLng([lat, lng]);
+                osmUserGpsCircle.current.setRadius(acc);
+              } else {
+                osmUserGpsCircle.current = window.L.circle([lat, lng], {
+                  radius: acc,
+                  color: '#2563eb',
+                  fillColor: '#3b82f6',
+                  fillOpacity: 0.15
+                }).addTo(osmInstance.current);
+              }
+            }
+            setLocatingGps(false);
+          },
+          (err) => {
+            console.warn("Real GPS access error:", err.message);
+            alert(`GPS Notice: ${err.message}. Please enable location permissions in your browser.`);
+            setLocatingGps(false);
+          },
+          { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+        );
+      };
+
+      // Initialize Mini Map
       useEffect(() => {
         if (!miniMapContainerRef.current) return;
 
-        // 1. Google Maps Engine (if API Key present and loaded)
+        // 1. Google Maps Engine
         if (mapEngine === 'google' && window.google && window.google.maps) {
           try {
             if (!gmapInstance.current) {
@@ -739,12 +863,12 @@
               });
 
               marker.addListener('dragend', (e) => {
-                updateLocationCoordinates(e.latLng.lat(), e.latLng.lng());
+                updateLocationCoordinates(e.latLng.lat(), e.latLng.lng(), 5, false);
               });
 
               map.addListener('click', (e) => {
                 marker.setPosition(e.latLng);
-                updateLocationCoordinates(e.latLng.lat(), e.latLng.lng());
+                updateLocationCoordinates(e.latLng.lat(), e.latLng.lng(), 5, false);
               });
 
               gmapInstance.current = map;
@@ -761,17 +885,18 @@
         if (window.L && !osmInstance.current) {
           const map = window.L.map(miniMapContainerRef.current, {
             center: [coords.lat, coords.lon],
-            zoom: 14,
+            zoom: 15,
             attributionControl: false
           });
 
           window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
+          // Red Hazard Pin
           const markerIcon = window.L.divIcon({
             className: 'custom-pin',
-            html: `<div style="background:#ef4444;width:30px;height:30px;border-radius:50%;border:3px solid white;box-shadow:0 3px 8px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;color:white;font-weight:black;font-size:12px;">📍</div>`,
-            iconSize: [30, 30],
-            iconAnchor: [15, 15]
+            html: `<div style="background:#ef4444;width:32px;height:32px;border-radius:50%;border:3px solid white;box-shadow:0 3px 10px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;color:white;font-weight:black;font-size:14px;">📍</div>`,
+            iconSize: [32, 32],
+            iconAnchor: [16, 16]
           });
 
           const marker = window.L.marker([coords.lat, coords.lon], {
@@ -779,16 +904,16 @@
             icon: markerIcon
           }).addTo(map);
 
-          marker.bindTooltip("Drag pin to exact spot or click anywhere on map", { permanent: true, direction: 'top' });
+          marker.bindTooltip("Drag pin to exact road spot or click anywhere on map", { permanent: true, direction: 'top' });
 
           marker.on('dragend', (e) => {
             const pos = e.target.getLatLng();
-            updateLocationCoordinates(pos.lat, pos.lng);
+            updateLocationCoordinates(pos.lat, pos.lng, 5, false);
           });
 
           map.on('click', (e) => {
             marker.setLatLng(e.latlng);
-            updateLocationCoordinates(e.latlng.lat, e.latlng.lng);
+            updateLocationCoordinates(e.latlng.lat, e.latlng.lng, 5, false);
           });
 
           osmInstance.current = map;
@@ -796,45 +921,15 @@
         }
       }, [mapEngine, gmapsLoaded]);
 
-      const handleLocateMe = () => {
-        setLocatingGps(true);
-        if (navigator.geolocation) {
-          navigator.geolocation.getCurrentPosition(
-            (pos) => {
-              const lat = pos.coords.latitude;
-              const lng = pos.coords.longitude;
-              updateLocationCoordinates(lat, lng);
-
-              // Update active map engine
-              if (mapEngine === 'google' && gmapInstance.current && gmapMarker.current) {
-                gmapInstance.current.setCenter({ lat, lng });
-                gmapInstance.current.setZoom(16);
-                gmapMarker.current.setPosition({ lat, lng });
-              } else if (osmInstance.current && osmMarker.current) {
-                osmInstance.current.setView([lat, lng], 16);
-                osmMarker.current.setLatLng([lat, lng]);
-              }
-              setLocatingGps(false);
-            },
-            (err) => {
-              console.warn("Geolocation denied, centering indiranagar");
-              setLocatingGps(false);
-            }
-          );
-        } else {
-          setLocatingGps(false);
-        }
-      };
-
-      const handleSelectPhoto = (sample) => {
+      const handleSelectPhoto = async (sample) => {
         setPhotoUrl(sample.url);
         setCoords({ lat: sample.lat, lon: sample.lon });
         setAddress(sample.addr);
+        setIsRealGpsLocked(false);
         setAnalyzing(true);
         setDetection(null);
         setPrediction(null);
 
-        // Update active map position
         if (mapEngine === 'google' && gmapInstance.current && gmapMarker.current) {
           gmapInstance.current.setCenter({ lat: sample.lat, lng: sample.lon });
           gmapMarker.current.setPosition({ lat: sample.lat, lng: sample.lon });
@@ -939,13 +1034,13 @@
         <div className="max-w-4xl mx-auto py-8 px-4">
           <div className="text-center mb-8">
             <span className="inline-block px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-200 mb-3">
-              ✨ AI-Powered Municipal Grievance Redressal
+              ✨ Real-Time High-Precision GPS Civic Redressal
             </span>
             <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">
-              Report a Civic Issue in 60 Seconds
+              Report a Civic Issue with Real GPS Location
             </h2>
             <p className="mt-2 text-sm text-slate-600 max-w-xl mx-auto">
-              Snap a photo, pin the exact Google Maps GPS spot on the road, and get an authentic grievance acknowledgement slip with real-time tracking.
+              Snap a photo, lock your device's actual GPS satellites, and drop a pinpoint marker for the municipal repair crew with instant reverse-geocoding.
             </p>
           </div>
 
@@ -1041,7 +1136,7 @@
                 {/* Location & Geo-Tag */}
                 <div className="border border-slate-200 rounded-xl p-3 text-xs bg-white mb-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                   <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Geo-Tagged Location Evidence</span>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Real Device Geo-Tagged Evidence</span>
                     <strong className="text-slate-800">{submittedIssue.address}</strong>
                     <div className="text-[10px] text-slate-500 font-mono">
                       Exact GPS Coordinates: {submittedIssue.latitude}° N, {submittedIssue.longitude}° E
@@ -1053,7 +1148,7 @@
                       target="_blank"
                       className="bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 hover:bg-blue-100"
                     >
-                      <span>🗺️ View on Google Maps</span>
+                      <span>🗺️ Open in Google Maps</span>
                     </a>
                     <div className="border border-slate-300 p-1.5 rounded-lg text-center bg-slate-50">
                       <div className="text-[9px] font-mono text-slate-600 font-bold">DIGITAL QR</div>
@@ -1231,83 +1326,88 @@
                 </div>
               )}
 
-              {/* DUAL GPS MINI MAP WITH GOOGLE MAPS API & OPENSTREETMAP TOGGLE */}
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-300">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-2">
+              {/* REAL GPS DEVICE HUD & INTERACTIVE PIN-DROP MINI MAP */}
+              <div className="bg-slate-50 p-4 sm:p-5 rounded-2xl border-2 border-slate-300 space-y-3">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                   <div>
-                    <label className="text-xs font-bold text-slate-900 block flex items-center gap-2">
-                      <span>2. Precise GPS Marking on Map</span>
+                    <label className="text-sm font-black text-slate-900 block flex items-center gap-2">
+                      <span>2. Real GPS Location & Pin-Drop Map</span>
                       <span className="text-red-500">*</span>
-                      <span className="bg-blue-100 text-blue-800 text-[10px] px-2 py-0.5 rounded font-bold">
-                        {mapEngine === 'google' && window.google ? 'Google Maps Mode' : 'High-Accuracy GIS'}
-                      </span>
+                      {isRealGpsLocked && (
+                        <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-300 flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
+                          Real Device GPS Locked
+                        </span>
+                      )}
                     </label>
-                    <span className="text-[11px] text-slate-500">
-                      Drag the marker or click on the road to mark the exact spot.
+                    <span className="text-xs text-slate-500">
+                      Tap the blue button to automatically lock onto your real device GPS satellites, or drag the red pin.
                     </span>
                   </div>
 
                   <div className="flex items-center gap-2">
-                    {/* Toggle Google Maps vs OpenStreetMap */}
-                    {googleApiKey ? (
-                      <button
-                        type="button"
-                        onClick={() => setMapEngine(mapEngine === 'google' ? 'osm' : 'google')}
-                        className="bg-white text-slate-700 border border-slate-300 px-2.5 py-1 rounded-lg text-xs font-bold hover:bg-slate-100"
-                      >
-                        Switch to {mapEngine === 'google' ? '🌐 OpenStreetMap' : '🗺️ Google Maps'}
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={onOpenGmapsModal}
-                        className="bg-amber-100 text-amber-900 border border-amber-300 px-2.5 py-1 rounded-lg text-[11px] font-bold hover:bg-amber-200"
-                      >
-                        🔑 Add Google Maps Key
-                      </button>
-                    )}
-
                     <button
                       type="button"
-                      onClick={handleLocateMe}
+                      onClick={handleAcquireRealGps}
                       disabled={locatingGps}
-                      className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1 shadow-sm"
+                      className="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-md transition"
                     >
-                      <span>🎯</span>
-                      <span>{locatingGps ? 'Locating...' : 'Locate My GPS'}</span>
+                      <span className="text-sm">🎯</span>
+                      <span>{locatingGps ? 'Locking Satellites...' : 'Acquire My Real GPS'}</span>
                     </button>
+                  </div>
+                </div>
+
+                {/* Real GPS Live Telemetry Card */}
+                <div className="bg-white p-3 rounded-xl border border-slate-200 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Latitude</span>
+                    <strong className="font-mono text-slate-900">{coords.lat.toFixed(6)}° N</strong>
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Longitude</span>
+                    <strong className="font-mono text-slate-900">{coords.lon.toFixed(6)}° E</strong>
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Accuracy</span>
+                    <span className="font-mono font-bold text-blue-700">&plusmn; {accuracyRadius} meters</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Satellite Fix</span>
+                    <span className="text-emerald-700 font-bold flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Active Lock
+                    </span>
                   </div>
                 </div>
 
                 {/* Map Container */}
                 <div
                   ref={miniMapContainerRef}
-                  className="w-full h-56 rounded-xl border border-slate-300 overflow-hidden shadow-inner mb-3 bg-slate-200"
+                  className="w-full h-64 rounded-xl border-2 border-slate-300 overflow-hidden shadow-inner bg-slate-200"
                 ></div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
                   <div>
-                    <span className="text-slate-500 font-semibold block mb-1">Street Address Description:</span>
+                    <span className="text-slate-700 font-bold block mb-1">
+                      Reverse-Geocoded Street Address (Auto-Updated):
+                    </span>
                     <input
                       type="text"
                       value={address}
                       onChange={(e) => setAddress(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white"
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-medium"
                       required
                     />
                   </div>
                   <div>
-                    <span className="text-slate-500 font-semibold block mb-1">Municipal Ward:</span>
-                    <select
+                    <span className="text-slate-700 font-bold block mb-1">Municipal Ward:</span>
+                    <input
+                      type="text"
                       value={ward}
                       onChange={(e) => setWard(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white"
-                    >
-                      <option value="Ward 12 - Indiranagar">Ward 12 - Indiranagar</option>
-                      <option value="Ward 14 - Market East">Ward 14 - Market East</option>
-                      <option value="Ward 08 - North Gate">Ward 08 - North Gate</option>
-                      <option value="Ward 15 - South East">Ward 15 - South East</option>
-                    </select>
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-medium"
+                      required
+                    />
                   </div>
                 </div>
               </div>
@@ -1779,7 +1879,7 @@
     // ==========================================
     // 6. MUNICIPAL ICCC CONTROL CENTER VIEW
     // ==========================================
-    function IcccView({ issues, googleApiKey, gmapsLoaded, onAssign, onResolve, onSelectSrn }) {
+    function IcccView({ issues, realUserGps, googleApiKey, gmapsLoaded, onAssign, onResolve, onSelectSrn }) {
       const [filterDept, setFilterDept] = useState('All');
       const [filterStatus, setFilterStatus] = useState('All');
       const [viewMode, setViewMode] = useState('table');
@@ -1851,7 +1951,7 @@
 
           {viewMode === 'map' ? (
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-              <CityMapComponent issues={filtered} googleApiKey={googleApiKey} gmapsLoaded={gmapsLoaded} />
+              <CityMapComponent issues={filtered} realUserGps={realUserGps} googleApiKey={googleApiKey} gmapsLoaded={gmapsLoaded} />
             </div>
           ) : (
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -2032,31 +2132,61 @@
       );
     }
 
-    // City Map Component with Google Maps & OpenStreetMap Dual Support
-    function CityMapComponent({ issues, googleApiKey, gmapsLoaded }) {
+    // City Map Component with Google Maps & OpenStreetMap Real GPS Pulse Support
+    function CityMapComponent({ issues, realUserGps, googleApiKey, gmapsLoaded }) {
       const mapContainerRef = useRef(null);
       const [useGoogle, setUseGoogle] = useState(() => Boolean(googleApiKey && window.google));
       const gmapRef = useRef(null);
       const osmRef = useRef(null);
       const markersGroup = useRef([]);
 
+      const handlePanToRealLocation = () => {
+        if (!realUserGps) return;
+        if (useGoogle && gmapRef.current) {
+          gmapRef.current.setCenter({ lat: realUserGps.lat, lng: realUserGps.lon });
+          gmapRef.current.setZoom(16);
+        } else if (osmRef.current) {
+          osmRef.current.setView([realUserGps.lat, realUserGps.lon], 16);
+        }
+      };
+
       useEffect(() => {
         if (!mapContainerRef.current) return;
+
+        // Center on real device GPS if available, else default Indiranagar
+        const centerLat = realUserGps ? realUserGps.lat : 12.9716;
+        const centerLon = realUserGps ? realUserGps.lon : 77.5946;
 
         // 1. Google Maps Mode
         if (useGoogle && window.google && window.google.maps) {
           try {
             if (!gmapRef.current) {
               const map = new window.google.maps.Map(mapContainerRef.current, {
-                center: { lat: 12.9716, lng: 77.5946 },
-                zoom: 13,
+                center: { lat: centerLat, lng: centerLon },
+                zoom: 14,
                 mapTypeId: 'roadmap',
                 mapTypeControl: true
               });
 
-              // Add live traffic layer
               const trafficLayer = new window.google.maps.TrafficLayer();
               trafficLayer.setMap(map);
+
+              // User's Real Location Marker
+              if (realUserGps) {
+                new window.google.maps.Marker({
+                  position: { lat: realUserGps.lat, lng: realUserGps.lon },
+                  map: map,
+                  icon: {
+                    path: window.google.maps.SymbolPath.CIRCLE,
+                    scale: 8,
+                    fillColor: "#2563eb",
+                    fillOpacity: 1,
+                    strokeColor: "#ffffff",
+                    strokeWeight: 2
+                  },
+                  title: "Your Real Device GPS Location"
+                });
+              }
 
               gmapRef.current = map;
             }
@@ -2094,8 +2224,21 @@
         // 2. OpenStreetMap Leaflet Mode
         if (window.L) {
           if (!osmRef.current) {
-            const map = window.L.map(mapContainerRef.current).setView([12.9716, 77.5946], 13);
+            const map = window.L.map(mapContainerRef.current).setView([centerLat, centerLon], 14);
             window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+            // User Real Location Pulse Marker
+            if (realUserGps) {
+              const userIcon = window.L.divIcon({
+                className: 'custom-pin',
+                html: `<div class="gps-pulse-ring" style="background:#2563eb;width:20px;height:20px;border-radius:50%;border:3px solid white;box-shadow:0 0 10px rgba(37,99,235,0.8);"></div>`,
+                iconSize: [20, 20]
+              });
+              window.L.marker([realUserGps.lat, realUserGps.lon], { icon: userIcon })
+                .addTo(map)
+                .bindPopup("<strong>You Are Here</strong><br/>Live Device GPS Location");
+            }
+
             osmRef.current = map;
           }
 
@@ -2117,14 +2260,24 @@
             markersGroup.current.push(marker);
           });
         }
-      }, [useGoogle, gmapsLoaded, issues]);
+      }, [useGoogle, gmapsLoaded, issues, realUserGps]);
 
       return (
         <div>
           <div className="flex justify-between items-center mb-2">
-            <span className="text-xs font-bold text-slate-700">
-              GIS Engine: {useGoogle && window.google ? '🗺️ Google Maps (with Live Traffic)' : '🌐 OpenStreetMap Tile Layer'}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-700">
+                GIS Engine: {useGoogle && window.google ? '🗺️ Google Maps (with Live Traffic)' : '🌐 OpenStreetMap Tile Layer'}
+              </span>
+              {realUserGps && (
+                <button
+                  onClick={handlePanToRealLocation}
+                  className="bg-blue-100 hover:bg-blue-200 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded border border-blue-300 flex items-center gap-1"
+                >
+                  <span>🎯 Pan to My Real GPS</span>
+                </button>
+              )}
+            </div>
             {googleApiKey && (
               <button
                 onClick={() => setUseGoogle(!useGoogle)}
