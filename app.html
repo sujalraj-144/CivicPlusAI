@@ -15,10 +15,16 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
   <style>
     body { font-family: 'Inter', sans-serif; }
+    .receipt-font { font-family: 'Courier Prime', monospace; }
     .custom-pin { display: flex; align-items: center; justify-content: center; }
+    @media print {
+      body * { visibility: hidden; }
+      #printable-receipt, #printable-receipt * { visibility: visible; }
+      #printable-receipt { position: absolute; left: 0; top: 0; width: 100%; border: none; box-shadow: none; }
+    }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900 min-h-screen">
@@ -164,7 +170,7 @@
 
     // Master App Component
     function App() {
-      const [activeTab, setActiveTab] = useState('citizen'); // 'citizen' | 'tracker' | 'radar' | 'leaderboard' | 'roi' | 'iccc'
+      const [activeTab, setActiveTab] = useState('citizen');
       const [issues, setIssues] = useState(INITIAL_ISSUES);
       const [trackedSrn, setTrackedSrn] = useState('CIVIC-W12-2026-8419');
       const [showAlertBanner, setShowAlertBanner] = useState(true);
@@ -275,7 +281,7 @@
                     activeTab === 'roi' ? 'bg-white text-blue-700 shadow-sm border font-bold' : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  💰 Taxpayer ROI
+                  💰 Taxpayer ROI (₹)
                 </button>
 
                 <button
@@ -382,18 +388,22 @@
     }
 
     // ==========================================
-    // 1. CITIZEN REPORT VIEW (WITH VOICE INPUT)
+    // 1. CITIZEN REPORT VIEW WITH OFFICIAL RECEIPT
     // ==========================================
     function CitizenView({ onIssueCreated, onTrack }) {
       const [photoUrl, setPhotoUrl] = useState('');
       const [address, setAddress] = useState('Indiranagar 100ft Road, Ward 12');
       const [ward, setWard] = useState('Ward 12 - Indiranagar');
       const [description, setDescription] = useState('');
+      const [citizenName, setCitizenName] = useState('Rahul Sharma');
+      const [citizenPhone, setCitizenPhone] = useState('+91 98765 43210');
       const [analyzing, setAnalyzing] = useState(false);
       const [detection, setDetection] = useState(null);
       const [prediction, setPrediction] = useState(null);
       const [submittedIssue, setSubmittedIssue] = useState(null);
       const [voiceListening, setVoiceListening] = useState(false);
+      const [ackNumber, setAckNumber] = useState('');
+      const [submissionTime, setSubmissionTime] = useState('');
 
       const samplePhotos = [
         { label: "Pothole on Arterial Road", url: "https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?w=600&auto=format&fit=crop&q=80", type: "Pothole", dept: "PWD / Roads & Bridges", sev: 82, rain: 24.5 },
@@ -450,7 +460,7 @@
         setVoiceListening(true);
         setTimeout(() => {
           setVoiceListening(false);
-          setDescription("Deep crater pothole near Indiranagar metro station pillar 42. Causes two-wheeler skids especially in rain.");
+          setDescription("Deep crater pothole near Indiranagar metro station pillar 42. Poses immediate accident hazard under rainfall.");
           if (!photoUrl) {
             handleSelectPhoto(samplePhotos[0]);
           }
@@ -461,9 +471,19 @@
         e.preventDefault();
         const rand = Math.floor(1000 + Math.random() * 9000);
         const srn = `CIVIC-W12-2026-${rand}`;
+        const ack = `ACK-GOV-${new Date().getFullYear()}-${rand}`;
+        const timeStr = new Date().toLocaleString('en-IN', {
+          dateStyle: 'medium',
+          timeStyle: 'short'
+        });
+
         const newIssue = {
           id: `issue-${Date.now()}`,
           srn,
+          ack,
+          timeStr,
+          citizenName: citizenName || 'Verified Citizen',
+          citizenPhone: citizenPhone || '+91 98765 43210',
           type: detection.detected_type,
           department: detection.department,
           latitude: 12.9716,
@@ -483,6 +503,8 @@
           }
         };
 
+        setAckNumber(ack);
+        setSubmissionTime(timeStr);
         onIssueCreated(newIssue);
         setSubmittedIssue(newIssue);
       };
@@ -497,57 +519,148 @@
               Report a Civic Issue in 60 Seconds
             </h2>
             <p className="mt-2 text-sm text-slate-600 max-w-xl mx-auto">
-              Snap a photo or dictate by voice. Computer vision classifies the hazard, connects Open-Meteo precipitation models, and alerts the ward junior engineer.
+              Snap a photo or dictate by voice. Computer vision classifies the hazard, connects Open-Meteo precipitation models, and generates an official legal grievance acknowledgement slip.
             </p>
           </div>
 
           {submittedIssue ? (
-            <div className="bg-white rounded-2xl shadow-lg border border-emerald-200 p-8 text-center">
-              <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
-                ✓
-              </div>
-              <h3 className="text-2xl font-bold text-slate-900">Grievance Registered Successfully</h3>
-              <p className="text-slate-600 text-sm mt-1">Logged into Municipal Integrated Command & Control System (ICCC).</p>
+            /* OFFICIAL GRIEVANCE ACKNOWLEDGEMENT RECEIPT (PROOF OF COMPLAINT) */
+            <div className="space-y-6">
+              <div
+                id="printable-receipt"
+                className="bg-white rounded-2xl shadow-xl border-2 border-slate-300 p-6 sm:p-8 relative overflow-hidden"
+              >
+                {/* Government Header Stamp */}
+                <div className="border-b-2 border-dashed border-slate-300 pb-5 mb-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-12 h-12 rounded-xl bg-slate-900 text-amber-400 flex items-center justify-center text-2xl font-black border border-slate-700">
+                      🏛️
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 block">
+                        GOVERNMENT OF SMART CITY MUNICIPAL CORPORATION
+                      </span>
+                      <h3 className="text-base font-black text-slate-900">
+                        OFFICIAL GRIEVANCE LODGMENT ACKNOWLEDGEMENT
+                      </h3>
+                      <p className="text-[11px] text-slate-500 font-medium">
+                        Public Grievance Redressal & Right to Service Act, 2026
+                      </p>
+                    </div>
+                  </div>
 
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 my-6 max-w-md mx-auto text-left">
-                <div className="flex justify-between items-center pb-3 border-b border-slate-200">
-                  <span className="text-xs font-bold uppercase text-slate-500">Service Request Number (SRN)</span>
-                  <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded border border-blue-200">
-                    {submittedIssue.srn}
+                  <div className="text-right sm:border-l sm:pl-4 border-slate-200">
+                    <div className="text-[10px] uppercase font-bold text-slate-400">Acknowledgement No.</div>
+                    <div className="font-mono text-sm font-black text-blue-800 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                      {ackNumber}
+                    </div>
+                    <div className="text-[10px] text-slate-500 font-medium mt-1">
+                      {submissionTime}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Status Verified Watermark Badge */}
+                <div className="bg-emerald-50 border border-emerald-300 rounded-xl p-3 mb-5 flex items-center justify-between">
+                  <div className="flex items-center space-x-2 text-emerald-900 text-xs font-bold">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
+                    <span>STATUS: REGISTERED IN MUNICIPAL COMMAND SYSTEM (ICCC)</span>
+                  </div>
+                  <span className="bg-emerald-600 text-white text-[10px] font-black px-2.5 py-0.5 rounded uppercase">
+                    LEGAL PROOF OF LODGMENT
                   </span>
                 </div>
-                <div className="pt-3 space-y-1.5 text-sm text-slate-600">
-                  <div className="flex justify-between">
-                    <span>Category:</span>
-                    <strong className="text-slate-900">{submittedIssue.type}</strong>
+
+                {/* Formal Record Details Table */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs bg-slate-50 p-4 rounded-xl border border-slate-200 receipt-font mb-5">
+                  <div className="space-y-2">
+                    <div>
+                      <span className="text-slate-500 block">Service Request Number (SRN):</span>
+                      <strong className="text-blue-900 text-sm font-black">{submittedIssue.srn}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">Complainant Name:</span>
+                      <strong className="text-slate-900">{submittedIssue.citizenName}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">Contact Mobile:</span>
+                      <strong className="text-slate-900">{submittedIssue.citizenPhone}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">Registered Ward & Zone:</span>
+                      <strong className="text-slate-900">{submittedIssue.ward_number}</strong>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span>Department:</span>
-                    <strong className="text-slate-900">{submittedIssue.department}</strong>
+
+                  <div className="space-y-2">
+                    <div>
+                      <span className="text-slate-500 block">Identified Hazard & Category:</span>
+                      <strong className="text-slate-900">{submittedIssue.type}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">Assigned Municipal Dept:</span>
+                      <strong className="text-slate-900">{submittedIssue.department}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">AI Computer Vision Severity:</span>
+                      <strong className="text-rose-600 font-bold">{submittedIssue.severity} / 100 (High Risk)</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">Guaranteed SLA Target:</span>
+                      <strong className="text-emerald-700 font-bold">{submittedIssue.sla_hours} Hours Max Resolution</strong>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span>Target Resolution SLA:</span>
-                    <strong className="text-emerald-700">{submittedIssue.sla_hours} Hours</strong>
+                </div>
+
+                {/* Location & Geo-Tag */}
+                <div className="border border-slate-200 rounded-xl p-3 text-xs bg-white mb-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Geo-Tagged Location Evidence</span>
+                    <strong className="text-slate-800">{submittedIssue.address}</strong>
+                    <div className="text-[10px] text-slate-500 font-mono">GPS Coordinates: 12.9716° N, 77.5946° E</div>
                   </div>
+                  <div className="border border-slate-300 p-1.5 rounded-lg text-center bg-slate-50">
+                    <div className="text-[9px] font-mono text-slate-600 font-bold">DIGITAL QR VERIFIED</div>
+                    <div className="text-lg">📱 ▦</div>
+                  </div>
+                </div>
+
+                {/* Legal Guarantee Notice */}
+                <div className="text-[11px] text-slate-500 border-t border-slate-200 pt-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                  <p>
+                    * This acknowledgement serves as official government proof under the Citizen Charter. If unaddressed within {submittedIssue.sla_hours} hours, the ticket automatically escalates to the Zonal Commissioner.
+                  </p>
+                  <span className="text-[10px] text-slate-400 font-mono whitespace-nowrap">
+                    Toll-Free Escalation: 1913
+                  </span>
                 </div>
               </div>
 
-              <div className="flex justify-center space-x-4">
+              {/* Action Buttons for Citizen */}
+              <div className="flex flex-wrap justify-center gap-3">
+                <button
+                  onClick={() => window.print()}
+                  className="bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold px-6 py-3 rounded-xl shadow-md transition flex items-center space-x-2 text-xs"
+                >
+                  <span>🖨️ Print / Save Official Acknowledgement Slip</span>
+                </button>
+
                 <button
                   onClick={() => onTrack(submittedIssue.srn)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2.5 rounded-xl shadow"
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3 rounded-xl shadow transition flex items-center space-x-2 text-xs"
                 >
-                  Track Resolution Live →
+                  <span>Track Resolution Progress Live →</span>
                 </button>
+
                 <button
                   onClick={() => {
                     setSubmittedIssue(null);
                     setPhotoUrl('');
                     setDetection(null);
                   }}
-                  className="border border-slate-300 text-slate-700 hover:bg-slate-100 font-semibold px-5 py-2.5 rounded-xl"
+                  className="border border-slate-300 text-slate-700 hover:bg-slate-100 font-semibold px-4 py-3 rounded-xl text-xs"
                 >
-                  Report Another
+                  Report Another Issue
                 </button>
               </div>
             </div>
@@ -681,6 +794,30 @@
                 </div>
               )}
 
+              {/* Citizen Details for Legal Proof */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Complainant Full Name (For Proof)</label>
+                  <input
+                    type="text"
+                    value={citizenName}
+                    onChange={(e) => setCitizenName(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Mobile Number (For SMS Acknowledgement)</label>
+                  <input
+                    type="text"
+                    value={citizenPhone}
+                    onChange={(e) => setCitizenPhone(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white"
+                    required
+                  />
+                </div>
+              </div>
+
               {/* Location Input */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -728,7 +865,7 @@
                   !photoUrl || analyzing ? 'bg-slate-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 active:scale-95'
                 }`}
               >
-                Submit Grievance to Municipal Corporation →
+                Submit Grievance & Generate Official Acknowledgement Receipt →
               </button>
             </form>
           )}
@@ -1036,53 +1173,60 @@
       );
     }
 
-    // ==========================================
-    // 5. TAXPAYER ROI & PREVENTIVE SAVINGS
-    // ==========================================
+    // ==============================================================
+    // 5. TAXPAYER ROI & PREVENTIVE SAVINGS (CHANGED TO INDIAN RUPEES)
+    // ==============================================================
     function TaxpayerRoiView() {
       const [earlyFixedCount, setEarlyFixedCount] = useState(140);
 
-      // Economics:
-      // Early cold-mix patch: $15 (Rs. 1,200)
-      // Neglected pothole crater + sub-base repair + accident settlement: $220 (Rs. 18,000)
-      const earlyCost = earlyFixedCount * 15;
-      const delayedCost = earlyFixedCount * 220;
+      // Economics in Indian Rupees (INR):
+      // Early cold-mix patch per pothole: ₹1,250
+      // Delayed crater erosion + base damage + vehicle repair liability: ₹18,500
+      const costPerEarly = 1250;
+      const costPerDelayed = 18500;
+      const earlyCost = earlyFixedCount * costPerEarly;
+      const delayedCost = earlyFixedCount * costPerDelayed;
       const totalSaved = delayedCost - earlyCost;
+      const totalSavedLakhs = (totalSaved / 100000).toFixed(2);
 
       return (
         <div className="max-w-4xl mx-auto py-8 px-4 space-y-6">
           <div className="text-center max-w-2xl mx-auto mb-8">
             <span className="inline-block px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 mb-2">
-              💰 Digital Twin Economics
+              💰 Digital Twin Economics (INR ₹)
             </span>
             <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">
               Taxpayer Savings & Preventative ROI
             </h2>
             <p className="text-xs text-slate-600 mt-1">
-              Validating Slide 11: "Predict problems before they become emergencies. Saves repair cost and reduces accidents."
+              Validating Slide 11: "Predict problems before they become emergencies. Saves repair cost and reduces road accidents."
             </p>
           </div>
 
-          <div className="bg-slate-900 text-white rounded-2xl p-6 sm:p-8 shadow-xl">
+          <div className="bg-slate-900 text-white rounded-2xl p-6 sm:p-8 shadow-xl border border-slate-800">
             <div className="text-xs font-mono font-bold text-amber-400 uppercase tracking-wider mb-2">
-              Interactive City Budget Simulation
+              Interactive Municipal Budget Simulator (Indian Rupees)
             </div>
+
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-6 border-b border-slate-800">
               <div>
-                <span className="text-xs text-slate-400">Total Taxpayer Funds Saved This Quarter</span>
+                <span className="text-xs text-slate-400">Total Public Municipal Funds Saved</span>
                 <div className="text-4xl font-black text-emerald-400 mt-1">
-                  ${totalSaved.toLocaleString()} <span className="text-sm font-semibold text-slate-400">(~₹{(totalSaved * 83).toLocaleString()})</span>
+                  ₹{totalSaved.toLocaleString('en-IN')}
+                  <span className="text-sm font-semibold text-slate-300 ml-2">
+                    (~₹{totalSavedLakhs} Lakhs)
+                  </span>
                 </div>
               </div>
-              <div className="bg-slate-800 px-4 py-2 rounded-xl border border-slate-700 text-right">
-                <span className="text-[10px] uppercase text-slate-400 block font-bold">Accidents Prevented</span>
-                <span className="text-xl font-bold text-amber-400">{Math.round(earlyFixedCount * 0.42)} Incidents</span>
+              <div className="bg-slate-800 px-4 py-2.5 rounded-xl border border-slate-700 text-right">
+                <span className="text-[10px] uppercase text-slate-400 block font-bold">Estimated Accidents Prevented</span>
+                <span className="text-xl font-bold text-amber-400">{Math.round(earlyFixedCount * 0.42)} Two-Wheeler Incidents</span>
               </div>
             </div>
 
             <div className="py-6 space-y-3">
               <div className="flex justify-between text-xs font-semibold">
-                <label>Simulate Early Potholes Detected & Fixed within 24h:</label>
+                <label>Simulate Early Potholes Detected & Fixed within 24 Hours:</label>
                 <span className="font-mono text-amber-400 font-bold">{earlyFixedCount} Repairs</span>
               </div>
               <input
@@ -1097,15 +1241,19 @@
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-slate-800 text-xs">
               <div className="bg-emerald-950/60 p-4 rounded-xl border border-emerald-800/60">
-                <span className="text-emerald-400 font-bold block mb-1">With CivicPulse AI (Proactive)</span>
-                <p className="text-slate-300">Total expenditure: <strong>${earlyCost.toLocaleString()}</strong></p>
-                <span className="text-[11px] text-slate-400 mt-1 block">Patched immediately using cold-mix asphalt before monsoon rains expand crater.</span>
+                <span className="text-emerald-400 font-bold block mb-1">With CivicPulse AI (Proactive 24h SLA)</span>
+                <p className="text-slate-300">Total Expenditure: <strong>₹{earlyCost.toLocaleString('en-IN')}</strong></p>
+                <span className="text-[11px] text-slate-400 mt-1 block">
+                  Cold-mix asphalt patch at <strong>₹{costPerEarly.toLocaleString('en-IN')}</strong> per pothole before monsoon rain erodes road sub-base.
+                </span>
               </div>
 
               <div className="bg-rose-950/60 p-4 rounded-xl border border-rose-800/60">
-                <span className="text-rose-400 font-bold block mb-1">Traditional Municipal Flow (Reactive)</span>
-                <p className="text-slate-300">Total expenditure: <strong>${delayedCost.toLocaleString()}</strong></p>
-                <span className="text-[11px] text-slate-400 mt-1 block">Neglected until crater damages vehicles, requiring full sub-base resurfacing.</span>
+                <span className="text-rose-400 font-bold block mb-1">Traditional Municipal Flow (Neglected Reactive)</span>
+                <p className="text-slate-300">Total Expenditure: <strong>₹{delayedCost.toLocaleString('en-IN')}</strong></p>
+                <span className="text-[11px] text-slate-400 mt-1 block">
+                  Delayed crater repairs cost <strong>₹{costPerDelayed.toLocaleString('en-IN')}</strong> due to sub-base damage and emergency resurfacing.
+                </span>
               </div>
             </div>
           </div>
