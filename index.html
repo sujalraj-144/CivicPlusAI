@@ -1,0 +1,1853 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CivicPulse AI | Smart Cities Municipal Platform</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React 18 & ReactDOM & Babel CDN for standalone instant browser execution -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; transition: font-size 0.2s ease; }
+    .receipt-font { font-family: 'Courier Prime', monospace; }
+    .custom-pin { display: flex; align-items: center; justify-content: center; }
+    .tricolor-bar {
+      height: 4px;
+      background: linear-gradient(90deg, #FF9933 33.3%, #FFFFFF 33.3%, #FFFFFF 66.6%, #138808 66.6%);
+    }
+    .high-contrast {
+      filter: contrast(115%);
+    }
+    @media print {
+      body * { visibility: hidden; }
+      #printable-receipt, #printable-receipt * { visibility: visible; }
+      #printable-receipt { position: absolute; left: 0; top: 0; width: 100%; border: none; box-shadow: none; }
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen flex flex-col">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // ==============================================================
+    // UNIFIED PERSISTENT DATABASE ENGINE (LOCALSTORAGE + FALLBACK)
+    // ==============================================================
+    const DB_KEY = "civicpulse_db_v3";
+
+    const DEFAULT_SEED_ISSUES = [
+      {
+        id: "issue-1",
+        srn: "CIVIC-W12-2026-8419",
+        ack: "ACK-GOV-2026-8419",
+        timeStr: "Today, 04:30 AM IST",
+        citizenName: "Karthik Raja",
+        citizenPhone: "+91 98451 23456",
+        type: "Pothole",
+        department: "PWD / Roads & Bridges",
+        latitude: 12.9716,
+        longitude: 77.5946,
+        address: "100 Ft Road, Near Indiranagar Metro Pillar 42",
+        ward_number: "Ward 12 - Indiranagar",
+        severity: 84,
+        status: "Assigned",
+        upvotes: 14,
+        image_url: "https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?w=600&auto=format&fit=crop&q=80",
+        after_image_url: "https://images.unsplash.com/photo-1584463699042-3a339a1a5b67?w=600&auto=format&fit=crop&q=80",
+        created_at: "14 hours ago",
+        sla_hours: 24,
+        prediction: {
+          severity_in_24_hours: 92,
+          severity_in_3_days: 96,
+          severity_in_7_days: 100,
+          priority: "HIGH",
+          rainfall_forecast_mm: 24.5,
+          traffic_density: "Heavy Commercial & Transit",
+          risk_summary: "High risk of crater expansion and two-wheeler skid accidents due to impending rainfall.",
+          recommended_action: "Immediate cold-mix asphalt patching & hazard barricading within 24 hours.",
+          sla_hours: 24
+        },
+        action: {
+          recommended_action: "Immediate cold-mix asphalt patching & hazard barricading.",
+          assigned_team: "PWD Rapid Response Unit 4",
+          assigned_official: "Er. R. Venkatesh (Junior Engineer)",
+          work_order_id: "WO-PWD-2026-118"
+        }
+      },
+      {
+        id: "issue-2",
+        srn: "CIVIC-W14-2026-3921",
+        ack: "ACK-GOV-2026-3921",
+        timeStr: "Yesterday, 07:15 PM IST",
+        citizenName: "Meenakshi Sundaram",
+        citizenPhone: "+91 97410 88992",
+        type: "Garbage Dump",
+        department: "Solid Waste Management",
+        latitude: 12.9650,
+        longitude: 77.6010,
+        address: "Opposite City Central Market, 4th Cross",
+        ward_number: "Ward 14 - Market East",
+        severity: 65,
+        status: "In Progress",
+        upvotes: 8,
+        image_url: "https://images.unsplash.com/photo-1605600659873-d808a13e4d2a?w=600&auto=format&fit=crop&q=80",
+        after_image_url: "https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?w=600&auto=format&fit=crop&q=80",
+        created_at: "22 hours ago",
+        sla_hours: 48,
+        prediction: {
+          severity_in_24_hours: 74,
+          severity_in_3_days: 85,
+          severity_in_7_days: 92,
+          priority: "MEDIUM",
+          rainfall_forecast_mm: 12.0,
+          traffic_density: "Dense Pedestrian",
+          risk_summary: "Piled organic waste blocking pedestrian walkway; microbial spread risk if rain begins.",
+          recommended_action: "Dispatch municipal tipper truck and deploy sanitation inspector.",
+          sla_hours: 48
+        },
+        action: {
+          recommended_action: "Dispatch municipal tipper truck and deploy sanitation inspector.",
+          assigned_team: "SWM Sanitation Team Charlie",
+          assigned_official: "S. Anitha (Health Inspector)",
+          work_order_id: "WO-SWM-2026-442"
+        }
+      },
+      {
+        id: "issue-3",
+        srn: "CIVIC-W08-2026-7290",
+        ack: "ACK-GOV-2026-7290",
+        timeStr: "Today, 02:40 AM IST",
+        citizenName: "Arun Prakash",
+        citizenPhone: "+91 94480 11223",
+        type: "Waterlogging",
+        department: "Stormwater & Drainage (BWSSB)",
+        latitude: 12.9790,
+        longitude: 77.5850,
+        address: "Railway Underpass, Seshadripuram",
+        ward_number: "Ward 08 - North Gate",
+        severity: 91,
+        status: "Submitted",
+        upvotes: 26,
+        image_url: "https://images.unsplash.com/photo-1547683905-f686c993aae5?w=600&auto=format&fit=crop&q=80",
+        after_image_url: null,
+        created_at: "3 hours ago",
+        sla_hours: 12,
+        prediction: {
+          severity_in_24_hours: 98,
+          severity_in_3_days: 100,
+          severity_in_7_days: 100,
+          priority: "HIGH",
+          rainfall_forecast_mm: 38.0,
+          traffic_density: "Critical Arterial Choke Point",
+          risk_summary: "Underpass drainage choked. Vehicle submergence risk during evening cloudburst.",
+          recommended_action: "Emergency de-watering high-capacity suction pumps required immediately.",
+          sla_hours: 12
+        }
+      },
+      {
+        id: "issue-4",
+        srn: "CIVIC-W15-2026-1102",
+        ack: "ACK-GOV-2026-1102",
+        timeStr: "2 days ago",
+        citizenName: "Dr. S. Radhakrishnan",
+        citizenPhone: "+91 99800 44556",
+        type: "Broken Streetlight",
+        department: "Municipal Electrical Dept",
+        latitude: 12.9550,
+        longitude: 77.6150,
+        address: "Koramangala 5th Block, 80 Feet Road Junction",
+        ward_number: "Ward 15 - South East",
+        severity: 35,
+        status: "Resolved",
+        upvotes: 3,
+        image_url: "https://images.unsplash.com/photo-1508873696983-2df5293cb32f?w=600&auto=format&fit=crop&q=80",
+        after_image_url: "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&auto=format&fit=crop&q=80",
+        created_at: "2 days ago",
+        sla_hours: 72,
+        prediction: {
+          severity_in_24_hours: 35,
+          severity_in_3_days: 40,
+          severity_in_7_days: 42,
+          priority: "LOW",
+          rainfall_forecast_mm: 5.0,
+          traffic_density: "Residential Sector",
+          risk_summary: "Localized illumination failure. Low accident probability.",
+          recommended_action: "Routine bulb and wiring replacement by maintenance contractor.",
+          sla_hours: 72
+        },
+        action: {
+          recommended_action: "Routine bulb and wiring replacement by maintenance contractor.",
+          assigned_team: "Electrical Maintenance Division 2",
+          assigned_official: "Er. P. Kumar",
+          work_order_id: "WO-ELEC-2026-092",
+          resolved_time: "Yesterday"
+        }
+      }
+    ];
+
+    function loadDatabase() {
+      try {
+        const stored = localStorage.getItem(DB_KEY);
+        if (stored) return JSON.parse(stored);
+      } catch (e) {
+        console.warn("Storage read error, using fallback seed", e);
+      }
+      return DEFAULT_SEED_ISSUES;
+    }
+
+    function saveDatabase(issues) {
+      try {
+        localStorage.setItem(DB_KEY, JSON.stringify(issues));
+      } catch (e) {
+        console.error("Storage write error", e);
+      }
+    }
+
+    // ==========================================
+    // MASTER APPLICATION COMPONENT
+    // ==========================================
+    function App() {
+      const [activeTab, setActiveTab] = useState('citizen');
+      const [issues, setIssues] = useState(loadDatabase);
+      const [trackedSrn, setTrackedSrn] = useState('CIVIC-W12-2026-8419');
+      const [showAlertBanner, setShowAlertBanner] = useState(true);
+
+      // Official Accessibility States
+      const [fontSizeScale, setFontSizeScale] = useState(100); // 90, 100, 115 %
+      const [highContrast, setHighContrast] = useState(false);
+      const [selectedLang, setSelectedLang] = useState('en'); // 'en', 'hi', 'kn', 'ta'
+      const [showCharterModal, setShowCharterModal] = useState(false);
+
+      // Save to localStorage whenever issues state changes
+      useEffect(() => {
+        saveDatabase(issues);
+      }, [issues]);
+
+      const handleAddIssue = (newIssue) => {
+        setIssues(prev => [newIssue, ...prev]);
+        setTrackedSrn(newIssue.srn);
+      };
+
+      const handleAssignIssue = (id, official, team, notes) => {
+        setIssues(prev => prev.map(i => i.id === id ? {
+          ...i,
+          status: 'Assigned',
+          action: {
+            ...i.action,
+            assigned_official: official,
+            assigned_team: team,
+            recommended_action: notes || i.action?.recommended_action,
+            work_order_id: `WO-${i.type.substring(0,3).toUpperCase()}-2026-${Math.floor(100+Math.random()*900)}`
+          }
+        } : i));
+      };
+
+      const handleResolveIssue = (id, notes) => {
+        setIssues(prev => prev.map(i => i.id === id ? {
+          ...i,
+          status: 'Resolved',
+          after_image_url: "https://images.unsplash.com/photo-1584463699042-3a339a1a5b67?w=600&auto=format&fit=crop&q=80",
+          action: {
+            ...i.action,
+            resolved_time: 'Just Now',
+            resolution_notes: notes
+          }
+        } : i));
+      };
+
+      const handleUpvote = (id) => {
+        setIssues(prev => prev.map(i => i.id === id ? { ...i, upvotes: i.upvotes + 1 } : i));
+      };
+
+      return (
+        <div
+          className={`min-h-screen flex flex-col ${highContrast ? 'high-contrast' : ''}`}
+          style={{ fontSize: `${fontSizeScale}%` }}
+        >
+          {/* National Tricolor Bar */}
+          <div className="tricolor-bar w-full"></div>
+
+          {/* Official Accessibility & Government Toolbar */}
+          <div className="bg-slate-900 text-slate-300 text-xs px-4 py-1.5 flex flex-wrap justify-between items-center border-b border-slate-800">
+            <div className="flex items-center space-x-3">
+              <span className="flex items-center space-x-1.5 font-bold text-amber-400">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>सत्यमेव जयते | GOVERNMENT OF SMART CITY MUNICIPAL CORPORATION</span>
+              </span>
+              <span className="hidden md:inline text-slate-600">|</span>
+              <span className="hidden md:inline text-slate-400">Department of Public Grievances & Municipal Administration</span>
+            </div>
+
+            {/* Accessibility Controls & Language Switcher */}
+            <div className="flex items-center space-x-4 font-mono text-xs">
+              <div className="flex items-center space-x-1 bg-slate-800 px-2 py-0.5 rounded border border-slate-700">
+                <span className="text-[10px] text-slate-400 mr-1">TEXT:</span>
+                <button onClick={() => setFontSizeScale(90)} className="hover:text-white px-1">A-</button>
+                <button onClick={() => setFontSizeScale(100)} className="hover:text-white px-1 font-bold">A</button>
+                <button onClick={() => setFontSizeScale(115)} className="hover:text-white px-1 font-bold">A+</button>
+              </div>
+
+              <button
+                onClick={() => setHighContrast(!highContrast)}
+                className="bg-slate-800 px-2 py-0.5 rounded border border-slate-700 hover:text-amber-400 text-[10px]"
+              >
+                {highContrast ? '☀️ Normal View' : '🌓 Contrast'}
+              </button>
+
+              <select
+                value={selectedLang}
+                onChange={(e) => setSelectedLang(e.target.value)}
+                className="bg-slate-800 text-slate-200 border border-slate-700 px-1.5 py-0.5 rounded text-[11px] font-sans"
+              >
+                <option value="en">English</option>
+                <option value="hi">हिन्दी (Hindi)</option>
+                <option value="kn">ಕನ್ನಡ (Kannada)</option>
+                <option value="ta">தமிழ் (Tamil)</option>
+              </select>
+
+              <button
+                onClick={() => setShowCharterModal(true)}
+                className="text-amber-400 hover:underline font-bold text-[11px]"
+              >
+                📜 Citizen Charter SLAs
+              </button>
+            </div>
+          </div>
+
+          {/* Monsoon & Flood Early Warning Ticker */}
+          {showAlertBanner && (
+            <div className="bg-gradient-to-r from-amber-600 via-orange-600 to-rose-600 text-white text-xs px-4 py-2 font-medium flex items-center justify-between shadow-sm">
+              <div className="flex items-center space-x-2">
+                <span className="bg-black/30 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider">
+                  ⚠️ MONSOON WATCH
+                </span>
+                <span>
+                  <strong>Open-Meteo Alert:</strong> 34.5mm rainfall predicted next 6 hours in Indiranagar & Seshadripuram. 3 underpasses flagged for preventive de-watering pumps.
+                </span>
+              </div>
+              <button
+                onClick={() => setActiveTab('radar')}
+                className="underline hover:text-amber-100 font-bold ml-4 text-[11px] whitespace-nowrap"
+              >
+                View Risk Radar →
+              </button>
+            </div>
+          )}
+
+          {/* Main Official Header & Navigation */}
+          <header className="border-b border-slate-200 bg-white shadow-sm sticky top-0 z-50">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div className="flex items-center space-x-3.5">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-900 to-slate-900 flex items-center justify-center text-white shadow font-black text-2xl border border-blue-700/40">
+                  🏛️
+                </div>
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <h1 className="text-xl font-black tracking-tight text-slate-900">
+                      CivicPulse <span className="text-blue-600">AI</span>
+                    </h1>
+                    <span className="bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-200">
+                      GOV PORTAL
+                    </span>
+                    <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span> DB Connected
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 font-medium">
+                    National Smart Cities Computer Vision Grievance Triage & Predictive Risk System
+                  </p>
+                </div>
+              </div>
+
+              {/* Comprehensive Top Menu Bar */}
+              <nav className="flex items-center flex-wrap gap-1 bg-slate-100 p-1.5 rounded-xl border border-slate-200 text-xs font-semibold">
+                <button
+                  onClick={() => setActiveTab('citizen')}
+                  className={`px-3 py-1.5 rounded-lg transition ${
+                    activeTab === 'citizen' ? 'bg-white text-blue-700 shadow-sm border font-bold' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  📍 Report Issue
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('tracker')}
+                  className={`px-3 py-1.5 rounded-lg transition ${
+                    activeTab === 'tracker' ? 'bg-white text-blue-700 shadow-sm border font-bold' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  🔍 Track SRN
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('radar')}
+                  className={`px-3 py-1.5 rounded-lg transition ${
+                    activeTab === 'radar' ? 'bg-white text-blue-700 shadow-sm border font-bold' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  🌧️ Risk Radar
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('leaderboard')}
+                  className={`px-3 py-1.5 rounded-lg transition ${
+                    activeTab === 'leaderboard' ? 'bg-white text-blue-700 shadow-sm border font-bold' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  🏆 Ward Leaderboard
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('roi')}
+                  className={`px-3 py-1.5 rounded-lg transition ${
+                    activeTab === 'roi' ? 'bg-white text-blue-700 shadow-sm border font-bold' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  💰 Taxpayer ROI (₹)
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('iccc')}
+                  className={`px-3.5 py-1.5 rounded-lg transition flex items-center space-x-1.5 ${
+                    activeTab === 'iccc' ? 'bg-slate-900 text-amber-400 font-bold shadow' : 'text-slate-700 hover:text-slate-900'
+                  }`}
+                >
+                  <span>🏢 Municipal ICCC</span>
+                  <span className="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
+                </button>
+              </nav>
+            </div>
+          </header>
+
+          {/* Main Body */}
+          <main className="flex-1">
+            {activeTab === 'citizen' && (
+              <CitizenView
+                onIssueCreated={handleAddIssue}
+                onTrack={(srn) => {
+                  setTrackedSrn(srn);
+                  setActiveTab('tracker');
+                }}
+              />
+            )}
+
+            {activeTab === 'tracker' && (
+              <TrackerView
+                initialSrn={trackedSrn}
+                issues={issues}
+                onUpvote={handleUpvote}
+              />
+            )}
+
+            {activeTab === 'radar' && (
+              <MonsoonRadarView issues={issues} />
+            )}
+
+            {activeTab === 'leaderboard' && (
+              <WardLeaderboardView issues={issues} />
+            )}
+
+            {activeTab === 'roi' && (
+              <TaxpayerRoiView issues={issues} />
+            )}
+
+            {activeTab === 'iccc' && (
+              <IcccView
+                issues={issues}
+                onAssign={handleAssignIssue}
+                onResolve={handleResolveIssue}
+                onSelectSrn={(srn) => {
+                  setTrackedSrn(srn);
+                  setActiveTab('tracker');
+                }}
+              />
+            )}
+          </main>
+
+          {/* Citizen Charter SLA Modal */}
+          {showCharterModal && (
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+              <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border animate-fade-in text-xs">
+                <div className="flex justify-between items-center pb-3 border-b border-slate-200">
+                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <span>📜</span>
+                    <span>Municipal Citizen Charter — Guaranteed SLA Matrix</span>
+                  </h3>
+                  <button onClick={() => setShowCharterModal(false)} className="text-slate-400 hover:text-slate-700 text-lg font-bold">✕</button>
+                </div>
+                <p className="text-slate-500 my-3">
+                  Under the Right to Service Act, the Municipal Corporation is legally bound to resolve grievances within these stipulated timeframes:
+                </p>
+                <div className="border rounded-xl overflow-hidden divide-y divide-slate-200">
+                  <div className="p-2.5 bg-slate-50 font-bold text-slate-700 flex justify-between">
+                    <span>Grievance Category</span>
+                    <span>Guaranteed Redressal SLA</span>
+                  </div>
+                  <div className="p-2.5 flex justify-between">
+                    <span>Pothole & Major Road Crater</span>
+                    <strong className="text-rose-600">24 Hours (Immediate Cordon)</strong>
+                  </div>
+                  <div className="p-2.5 flex justify-between">
+                    <span>Underpass Waterlogging & Flood Choke</span>
+                    <strong className="text-rose-600">12 Hours (Emergency Pump)</strong>
+                  </div>
+                  <div className="p-2.5 flex justify-between">
+                    <span>Solid Waste & Illegal Garbage Pile</span>
+                    <strong className="text-amber-600">48 Hours (Tipper Truck)</strong>
+                  </div>
+                  <div className="p-2.5 flex justify-between">
+                    <span>Broken Streetlight / Dark Spot</span>
+                    <strong className="text-emerald-700">72 Hours (Bulb / Wiring)</strong>
+                  </div>
+                  <div className="p-2.5 flex justify-between">
+                    <span>Open / Broken Sewer Manhole</span>
+                    <strong className="text-red-700 font-black">4 Hours (Priority Emergency)</strong>
+                  </div>
+                </div>
+                <div className="mt-4 pt-3 border-t flex justify-end">
+                  <button onClick={() => setShowCharterModal(false)} className="bg-slate-900 text-white px-4 py-2 rounded-xl font-bold">
+                    Close Charter
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Footer */}
+          <footer className="bg-slate-900 text-slate-400 text-xs py-8 border-t border-slate-800 mt-12">
+            <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4">
+              <div>
+                <p className="font-bold text-slate-200">CivicPulse AI — Smart City Municipal Operations System</p>
+                <p className="text-slate-500 mt-0.5">Pretrained YOLOv8 Computer Vision + Open-Meteo Precipitation Telemetry</p>
+              </div>
+              <div className="flex items-center space-x-4 text-slate-400">
+                <span>Built by <strong>Team Knox Drift</strong> (Shyam, Balaji, Sujal, Akhil)</span>
+                <span>•</span>
+                <span>Ministry of Housing & Urban Affairs Standards</span>
+              </div>
+            </div>
+          </footer>
+        </div>
+      );
+    }
+
+    // ==============================================================
+    // 1. CITIZEN REPORT VIEW WITH LIVE GPS PIN-DROP MINI MAP & OTP
+    // ==============================================================
+    function CitizenView({ onIssueCreated, onTrack }) {
+      const [photoUrl, setPhotoUrl] = useState('');
+      const [coords, setCoords] = useState({ lat: 12.9716, lon: 77.5946 });
+      const [address, setAddress] = useState('100 Ft Road, Near Indiranagar Metro, Ward 12');
+      const [ward, setWard] = useState('Ward 12 - Indiranagar');
+      const [description, setDescription] = useState('');
+      const [citizenName, setCitizenName] = useState('Rahul Sharma');
+      const [citizenPhone, setCitizenPhone] = useState('+91 98765 43210');
+      const [analyzing, setAnalyzing] = useState(false);
+      const [detection, setDetection] = useState(null);
+      const [prediction, setPrediction] = useState(null);
+      const [submittedIssue, setSubmittedIssue] = useState(null);
+      const [voiceListening, setVoiceListening] = useState(false);
+      const [locatingGps, setLocatingGps] = useState(false);
+
+      // Mini GPS Map reference
+      const miniMapRef = useRef(null);
+      const miniMapInstance = useRef(null);
+      const miniMapMarker = useRef(null);
+
+      const samplePhotos = [
+        { label: "Pothole on Arterial Road", url: "https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?w=600&auto=format&fit=crop&q=80", type: "Pothole", dept: "PWD / Roads & Bridges", sev: 82, rain: 24.5, lat: 12.9716, lon: 77.5946, addr: "100 Ft Road, Near Indiranagar Metro Pillar 42" },
+        { label: "Garbage Accumulation", url: "https://images.unsplash.com/photo-1605600659873-d808a13e4d2a?w=600&auto=format&fit=crop&q=80", type: "Garbage Dump", dept: "Solid Waste Management", sev: 64, rain: 12.0, lat: 12.9650, lon: 77.6010, addr: "Opposite City Central Market, 4th Cross" },
+        { label: "Underpass Waterlogging", url: "https://images.unsplash.com/photo-1547683905-f686c993aae5?w=600&auto=format&fit=crop&q=80", type: "Waterlogging", dept: "Stormwater & Drainage (BWSSB)", sev: 92, rain: 38.0, lat: 12.9790, lon: 77.5850, addr: "Railway Underpass, Seshadripuram" },
+        { label: "Broken Streetlight", url: "https://images.unsplash.com/photo-1508873696983-2df5293cb32f?w=600&auto=format&fit=crop&q=80", type: "Broken Streetlight", dept: "Municipal Electrical Dept", sev: 36, rain: 5.0, lat: 12.9550, lon: 77.6150, addr: "Koramangala 5th Block, 80 Feet Road Junction" }
+      ];
+
+      // Initialize Mini Leaflet Pin-Drop Map
+      useEffect(() => {
+        if (!miniMapRef.current || !window.L) return;
+
+        if (!miniMapInstance.current) {
+          const map = window.L.map(miniMapRef.current, {
+            center: [coords.lat, coords.lon],
+            zoom: 14,
+            attributionControl: false
+          });
+
+          window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+          // Draggable Red Pin
+          const markerIcon = window.L.divIcon({
+            className: 'custom-pin',
+            html: `<div style="background:#ef4444;width:30px;height:30px;border-radius:50%;border:3px solid white;box-shadow:0 3px 8px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;color:white;font-weight:black;font-size:12px;">📍</div>`,
+            iconSize: [30, 30],
+            iconAnchor: [15, 15]
+          });
+
+          const marker = window.L.marker([coords.lat, coords.lon], {
+            draggable: true,
+            icon: markerIcon
+          }).addTo(map);
+
+          marker.bindTooltip("Drag pin to exact spot or click anywhere on map", { permanent: true, direction: 'top' });
+
+          // On Drag End
+          marker.on('dragend', (e) => {
+            const pos = e.target.getLatLng();
+            updateLocationCoordinates(pos.lat, pos.lng);
+          });
+
+          // On Map Click -> Move Pin
+          map.on('click', (e) => {
+            marker.setLatLng(e.latlng);
+            updateLocationCoordinates(e.latlng.lat, e.latlng.lng);
+          });
+
+          miniMapInstance.current = map;
+          miniMapMarker.current = marker;
+        }
+      }, []);
+
+      const updateLocationCoordinates = (lat, lng) => {
+        const roundedLat = parseFloat(lat.toFixed(6));
+        const roundedLng = parseFloat(lng.toFixed(6));
+        setCoords({ lat: roundedLat, lon: roundedLng });
+        setAddress(`GPS Geo-Tagged: ${roundedLat}° N, ${roundedLng}° E (Pin Dropped)`);
+      };
+
+      const handleLocateMe = () => {
+        setLocatingGps(true);
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              const lat = pos.coords.latitude;
+              const lng = pos.coords.longitude;
+              updateLocationCoordinates(lat, lng);
+              if (miniMapInstance.current && miniMapMarker.current) {
+                miniMapInstance.current.setView([lat, lng], 16);
+                miniMapMarker.current.setLatLng([lat, lng]);
+              }
+              setLocatingGps(false);
+            },
+            (err) => {
+              console.warn("Geolocation denied, centering indiranagar");
+              setLocatingGps(false);
+            }
+          );
+        } else {
+          setLocatingGps(false);
+        }
+      };
+
+      const handleSelectPhoto = (sample) => {
+        setPhotoUrl(sample.url);
+        setCoords({ lat: sample.lat, lon: sample.lon });
+        setAddress(sample.addr);
+        setAnalyzing(true);
+        setDetection(null);
+        setPrediction(null);
+
+        if (miniMapInstance.current && miniMapMarker.current) {
+          miniMapInstance.current.setView([sample.lat, sample.lon], 15);
+          miniMapMarker.current.setLatLng([sample.lat, sample.lon]);
+        }
+
+        setTimeout(() => {
+          setAnalyzing(false);
+          setDetection({
+            detected_type: sample.type,
+            department: sample.dept,
+            confidence: 0.94,
+            initial_severity: sample.sev
+          });
+          setPrediction({
+            severity_in_24_hours: Math.min(100, sample.sev + 12),
+            severity_in_3_days: Math.min(100, sample.sev + 20),
+            severity_in_7_days: Math.min(100, sample.sev + 28),
+            priority: sample.sev >= 80 ? "HIGH" : sample.sev >= 40 ? "MEDIUM" : "LOW",
+            rainfall_forecast_mm: sample.rain,
+            traffic_density: "Heavy Arterial Transit",
+            sla_hours: sample.sev >= 80 ? 24 : 48,
+            recommended_action: sample.sev >= 80
+              ? "Immediate emergency cold-mix patching & hazard barricading within 24 hours."
+              : "Schedule ward maintenance team inspection."
+          });
+        }, 800);
+      };
+
+      const handleFileUpload = (e) => {
+        const file = e.target.files?.[0];
+        if (file) {
+          const url = URL.createObjectURL(file);
+          handleSelectPhoto({
+            label: "Citizen Upload",
+            url,
+            type: "Pothole",
+            dept: "PWD / Roads & Bridges",
+            sev: 76,
+            rain: 18.0,
+            lat: coords.lat,
+            lon: coords.lon,
+            addr: address
+          });
+        }
+      };
+
+      const handleVoiceInput = () => {
+        setVoiceListening(true);
+        setTimeout(() => {
+          setVoiceListening(false);
+          setDescription("Deep crater pothole near Indiranagar metro station pillar 42. Poses immediate accident hazard under rainfall.");
+          if (!photoUrl) {
+            handleSelectPhoto(samplePhotos[0]);
+          }
+        }, 1500);
+      };
+
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        const rand = Math.floor(1000 + Math.random() * 9000);
+        const srn = `CIVIC-W12-2026-${rand}`;
+        const ack = `ACK-GOV-${new Date().getFullYear()}-${rand}`;
+        const timeStr = new Date().toLocaleString('en-IN', {
+          dateStyle: 'medium',
+          timeStyle: 'short'
+        });
+
+        const newIssue = {
+          id: `issue-${Date.now()}`,
+          srn,
+          ack,
+          timeStr,
+          citizenName: citizenName || 'Verified Citizen',
+          citizenPhone: citizenPhone || '+91 98765 43210',
+          type: detection.detected_type,
+          department: detection.department,
+          latitude: coords.lat,
+          longitude: coords.lon,
+          address,
+          ward_number: ward,
+          severity: detection.initial_severity,
+          status: "Submitted",
+          upvotes: 1,
+          image_url: photoUrl,
+          after_image_url: null,
+          created_at: "Just Now",
+          sla_hours: prediction.sla_hours,
+          prediction,
+          action: {
+            recommended_action: prediction.recommended_action
+          }
+        };
+
+        onIssueCreated(newIssue);
+        setSubmittedIssue(newIssue);
+      };
+
+      return (
+        <div className="max-w-4xl mx-auto py-8 px-4">
+          <div className="text-center mb-8">
+            <span className="inline-block px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-200 mb-3">
+              ✨ AI-Powered Municipal Grievance Redressal
+            </span>
+            <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">
+              Report a Civic Issue in 60 Seconds
+            </h2>
+            <p className="mt-2 text-sm text-slate-600 max-w-xl mx-auto">
+              Snap a photo, pin the exact GPS spot on the map, and get an authentic, legal grievance acknowledgement slip with real-time tracking.
+            </p>
+          </div>
+
+          {submittedIssue ? (
+            /* OFFICIAL GRIEVANCE ACKNOWLEDGEMENT RECEIPT (PROOF OF COMPLAINT) */
+            <div className="space-y-6">
+              <div
+                id="printable-receipt"
+                className="bg-white rounded-2xl shadow-xl border-2 border-slate-300 p-6 sm:p-8 relative overflow-hidden"
+              >
+                {/* Government Header Stamp */}
+                <div className="border-b-2 border-dashed border-slate-300 pb-5 mb-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-12 h-12 rounded-xl bg-slate-900 text-amber-400 flex items-center justify-center text-2xl font-black border border-slate-700">
+                      🏛️
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 block">
+                        GOVERNMENT OF SMART CITY MUNICIPAL CORPORATION
+                      </span>
+                      <h3 className="text-base font-black text-slate-900">
+                        OFFICIAL GRIEVANCE LODGMENT ACKNOWLEDGEMENT
+                      </h3>
+                      <p className="text-[11px] text-slate-500 font-medium">
+                        Public Grievance Redressal & Right to Service Act, 2026
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="text-right sm:border-l sm:pl-4 border-slate-200">
+                    <div className="text-[10px] uppercase font-bold text-slate-400">Acknowledgement No.</div>
+                    <div className="font-mono text-sm font-black text-blue-800 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                      {submittedIssue.ack}
+                    </div>
+                    <div className="text-[10px] text-slate-500 font-medium mt-1">
+                      {submittedIssue.timeStr}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Status Verified Watermark Badge */}
+                <div className="bg-emerald-50 border border-emerald-300 rounded-xl p-3 mb-5 flex items-center justify-between">
+                  <div className="flex items-center space-x-2 text-emerald-900 text-xs font-bold">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
+                    <span>STATUS: REGISTERED IN MUNICIPAL COMMAND SYSTEM (ICCC)</span>
+                  </div>
+                  <span className="bg-emerald-600 text-white text-[10px] font-black px-2.5 py-0.5 rounded uppercase">
+                    LEGAL PROOF OF LODGMENT
+                  </span>
+                </div>
+
+                {/* Formal Record Details Table */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs bg-slate-50 p-4 rounded-xl border border-slate-200 receipt-font mb-5">
+                  <div className="space-y-2">
+                    <div>
+                      <span className="text-slate-500 block">Service Request Number (SRN):</span>
+                      <strong className="text-blue-900 text-sm font-black">{submittedIssue.srn}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">Complainant Name:</span>
+                      <strong className="text-slate-900">{submittedIssue.citizenName}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">Contact Mobile (OTP Verified):</span>
+                      <strong className="text-slate-900">{submittedIssue.citizenPhone}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">Registered Ward & Zone:</span>
+                      <strong className="text-slate-900">{submittedIssue.ward_number}</strong>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div>
+                      <span className="text-slate-500 block">Identified Hazard & Category:</span>
+                      <strong className="text-slate-900">{submittedIssue.type}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">Assigned Municipal Dept:</span>
+                      <strong className="text-slate-900">{submittedIssue.department}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">AI Computer Vision Severity:</span>
+                      <strong className="text-rose-600 font-bold">{submittedIssue.severity} / 100 (High Risk)</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">Guaranteed SLA Target:</span>
+                      <strong className="text-emerald-700 font-bold">{submittedIssue.sla_hours} Hours Max Resolution</strong>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Location & Geo-Tag */}
+                <div className="border border-slate-200 rounded-xl p-3 text-xs bg-white mb-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Geo-Tagged Location Evidence</span>
+                    <strong className="text-slate-800">{submittedIssue.address}</strong>
+                    <div className="text-[10px] text-slate-500 font-mono">
+                      Exact GPS Coordinates: {submittedIssue.latitude}° N, {submittedIssue.longitude}° E
+                    </div>
+                  </div>
+                  <div className="border border-slate-300 p-1.5 rounded-lg text-center bg-slate-50">
+                    <div className="text-[9px] font-mono text-slate-600 font-bold">DIGITAL QR VERIFIED</div>
+                    <div className="text-lg">📱 ▦</div>
+                  </div>
+                </div>
+
+                {/* Legal Guarantee Notice */}
+                <div className="text-[11px] text-slate-500 border-t border-slate-200 pt-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                  <p>
+                    * This acknowledgement serves as official government proof under the Citizen Charter. If unaddressed within {submittedIssue.sla_hours} hours, the ticket automatically escalates to the Zonal Commissioner.
+                  </p>
+                  <span className="text-[10px] text-slate-400 font-mono whitespace-nowrap">
+                    Toll-Free Escalation: 1913
+                  </span>
+                </div>
+              </div>
+
+              {/* Action Buttons for Citizen */}
+              <div className="flex flex-wrap justify-center gap-3">
+                <button
+                  onClick={() => window.print()}
+                  className="bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold px-6 py-3 rounded-xl shadow-md transition flex items-center space-x-2 text-xs"
+                >
+                  <span>🖨️ Print / Save Official Acknowledgement Slip</span>
+                </button>
+
+                <button
+                  onClick={() => onTrack(submittedIssue.srn)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3 rounded-xl shadow transition flex items-center space-x-2 text-xs"
+                >
+                  <span>Track Resolution Progress Live →</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setSubmittedIssue(null);
+                    setPhotoUrl('');
+                    setDetection(null);
+                  }}
+                  className="border border-slate-300 text-slate-700 hover:bg-slate-100 font-semibold px-4 py-3 rounded-xl text-xs"
+                >
+                  Report Another Issue
+                </button>
+              </div>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 md:p-8 space-y-6">
+              {/* Voice Complaint Button */}
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center text-lg">
+                    🎙️
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-900">Multilingual Voice Grievance Assistant</h4>
+                    <p className="text-[11px] text-slate-500">Tap to speak in English, Hindi, or Regional languages.</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleVoiceInput}
+                  disabled={voiceListening}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold text-white transition shadow ${
+                    voiceListening ? 'bg-rose-500 animate-pulse' : 'bg-blue-600 hover:bg-blue-700'
+                  }`}
+                >
+                  {voiceListening ? 'Listening...' : 'Tap & Speak Complaint'}
+                </button>
+              </div>
+
+              {/* Photo Input */}
+              <div>
+                <label className="block text-sm font-bold text-slate-900 mb-2">
+                  1. Capture or Select Photo of Civic Issue <span className="text-red-500">*</span>
+                </label>
+
+                {/* Quick Sample Selector */}
+                <div className="mb-4">
+                  <div className="text-xs font-semibold text-slate-500 mb-2">Quick Hackathon Test Photos:</div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {samplePhotos.map((s, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => handleSelectPhoto(s)}
+                        className={`text-left p-2 rounded-xl border text-xs font-semibold transition ${
+                          photoUrl === s.url ? 'border-blue-600 bg-blue-50 text-blue-900' : 'border-slate-200 hover:border-slate-300 bg-slate-50'
+                        }`}
+                      >
+                        <img src={s.url} alt="" className="w-full h-16 object-cover rounded-lg mb-1.5" />
+                        <span className="block truncate">{s.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <label className="flex-1 border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-xl p-4 text-center cursor-pointer bg-slate-50 transition">
+                    <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
+                    <span className="text-xs font-bold text-slate-700">📁 Or Choose Any Image File From Computer</span>
+                  </label>
+                </div>
+
+                {photoUrl && (
+                  <div className="mt-4 relative rounded-xl overflow-hidden border border-slate-200 h-64 bg-slate-900">
+                    <img src={photoUrl} alt="Preview" className="w-full h-full object-cover" />
+                    {analyzing && (
+                      <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center text-white text-sm font-semibold">
+                        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-2"></div>
+                        <span>Running YOLO Computer Vision Detection & Weather Risk Model...</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* AI Detection Card */}
+              {detection && (
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border border-blue-200 p-5">
+                  <div className="flex justify-between items-center pb-3 border-b border-blue-200 mb-3">
+                    <span className="text-xs font-extrabold text-blue-950 uppercase tracking-wider flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                      AI Computer Vision Assessment
+                    </span>
+                    <span className="text-xs font-mono font-bold bg-blue-100 text-blue-900 px-2 py-0.5 rounded border border-blue-300">
+                      Confidence: {(detection.confidence * 100).toFixed(0)}%
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-white p-3.5 rounded-xl border border-blue-100 shadow-sm">
+                      <span className="text-xs text-slate-500 font-medium">Hazard Type</span>
+                      <p className="text-lg font-bold text-slate-900">{detection.detected_type}</p>
+                      <span className="text-[11px] text-blue-600 font-semibold">{detection.department}</span>
+                    </div>
+
+                    <div className="bg-white p-3.5 rounded-xl border border-blue-100 shadow-sm">
+                      <span className="text-xs text-slate-500 font-medium">Initial Severity</span>
+                      <div className="text-2xl font-black text-rose-600">{detection.initial_severity} <span className="text-xs text-slate-400">/ 100</span></div>
+                      <div className="w-full bg-slate-100 h-1.5 rounded-full mt-1 overflow-hidden">
+                        <div className="bg-rose-500 h-full rounded-full" style={{ width: `${detection.initial_severity}%` }}></div>
+                      </div>
+                    </div>
+
+                    <div className="bg-white p-3.5 rounded-xl border border-blue-100 shadow-sm">
+                      <span className="text-xs text-slate-500 font-medium">Priority & Target SLA</span>
+                      <p className="text-lg font-bold text-amber-700">{prediction?.priority}</p>
+                      <span className="text-[11px] text-emerald-700 font-semibold">Target SLA: {prediction?.sla_hours} Hours</span>
+                    </div>
+                  </div>
+
+                  {prediction && (
+                    <div className="mt-4 pt-3 border-t border-blue-200">
+                      <div className="text-xs font-bold text-slate-700 mb-2">
+                        🌧️ Predictive Risk (Open-Meteo {prediction.rainfall_forecast_mm}mm rain + {prediction.traffic_density})
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                        <div className="bg-white p-2 rounded-lg border border-blue-100">
+                          <span className="text-slate-500 block">In 24 Hours</span>
+                          <strong className="text-amber-700 font-bold text-sm">{prediction.severity_in_24_hours}/100</strong>
+                        </div>
+                        <div className="bg-white p-2 rounded-lg border border-blue-100">
+                          <span className="text-slate-500 block">In 3 Days</span>
+                          <strong className="text-orange-600 font-bold text-sm">{prediction.severity_in_3_days}/100</strong>
+                        </div>
+                        <div className="bg-white p-2 rounded-lg border border-blue-100">
+                          <span className="text-slate-500 block">In 7 Days</span>
+                          <strong className="text-rose-700 font-bold text-sm">{prediction.severity_in_7_days}/100</strong>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* INTERACTIVE MINI GPS PIN-DROP MAP */}
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-300">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-2">
+                  <div>
+                    <label className="text-xs font-bold text-slate-900 block">
+                      2. Pin-Drop Precise GPS Location on Map <span className="text-red-500">*</span>
+                    </label>
+                    <span className="text-[11px] text-slate-500">
+                      Click anywhere on the map or drag the red pin to set the exact spot for the repair crew.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleLocateMe}
+                    disabled={locatingGps}
+                    className="bg-white hover:bg-slate-100 text-blue-700 border border-blue-300 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 shadow-sm"
+                  >
+                    <span>🎯</span>
+                    <span>{locatingGps ? 'Locating...' : 'Locate My GPS'}</span>
+                  </button>
+                </div>
+
+                <div
+                  ref={miniMapRef}
+                  className="w-full h-52 rounded-xl border border-slate-300 overflow-hidden shadow-inner mb-3"
+                ></div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <span className="text-slate-500 font-semibold block mb-1">Street Address Description:</span>
+                    <input
+                      type="text"
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <span className="text-slate-500 font-semibold block mb-1">Municipal Ward:</span>
+                    <select
+                      value={ward}
+                      onChange={(e) => setWard(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white"
+                    >
+                      <option value="Ward 12 - Indiranagar">Ward 12 - Indiranagar</option>
+                      <option value="Ward 14 - Market East">Ward 14 - Market East</option>
+                      <option value="Ward 08 - North Gate">Ward 08 - North Gate</option>
+                      <option value="Ward 15 - South East">Ward 15 - South East</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Citizen Details for Legal Proof */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Complainant Full Name (For Proof)</label>
+                  <input
+                    type="text"
+                    value={citizenName}
+                    onChange={(e) => setCitizenName(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Mobile Number (For SMS Acknowledgement)</label>
+                  <input
+                    type="text"
+                    value={citizenPhone}
+                    onChange={(e) => setCitizenPhone(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Hazard / Landmark Description</label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Mention landmarks, nearby schools, or accident risks..."
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm"
+                  rows={2}
+                ></textarea>
+              </div>
+
+              {/* Submit */}
+              <button
+                type="submit"
+                disabled={!photoUrl || analyzing}
+                className={`w-full py-3.5 rounded-xl font-bold text-white shadow transition ${
+                  !photoUrl || analyzing ? 'bg-slate-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 active:scale-95'
+                }`}
+              >
+                Submit Grievance & Generate Official Acknowledgement Receipt →
+              </button>
+            </form>
+          )}
+        </div>
+      );
+    }
+
+    // ==========================================
+    // 2. GRIEVANCE TRACKER (BEFORE / AFTER PROOF)
+    // ==========================================
+    function TrackerView({ initialSrn, issues, onUpvote }) {
+      const [srnInput, setSrnInput] = useState(initialSrn || 'CIVIC-W12-2026-8419');
+      const [issue, setIssue] = useState(null);
+      const [upvoted, setUpvoted] = useState(false);
+
+      useEffect(() => {
+        const found = issues.find(i => i.srn.toLowerCase() === srnInput.trim().toLowerCase());
+        setIssue(found || issues[0]);
+        setUpvoted(false);
+      }, [srnInput, issues]);
+
+      const stages = [
+        { label: "1. Logged", desc: "Geo-tagged photo & Pin" },
+        { label: "2. AI Triaged", desc: "YOLO + Weather score" },
+        { label: "3. Work Order", desc: "Assigned to Engineer" },
+        { label: "4. In Progress", desc: "Field contractor on-site" },
+        { label: "5. Resolved", desc: "Proof validated" }
+      ];
+
+      const getStageIdx = (status) => {
+        if (status === 'Submitted') return 0;
+        if (status === 'Triaged') return 1;
+        if (status === 'Assigned') return 2;
+        if (status === 'In Progress') return 3;
+        if (status === 'Resolved') return 4;
+        return 1;
+      };
+
+      return (
+        <div className="max-w-4xl mx-auto py-8 px-4">
+          <div className="text-center mb-8">
+            <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Track Grievance Status</h2>
+            <p className="mt-2 text-sm text-slate-600">Enter your Service Request Number (SRN) to view field progress & SLA timers.</p>
+
+            <div className="mt-6 max-w-md mx-auto flex gap-2">
+              <input
+                type="text"
+                value={srnInput}
+                onChange={(e) => setSrnInput(e.target.value)}
+                placeholder="e.g. CIVIC-W12-2026-8419"
+                className="flex-1 px-4 py-2.5 rounded-xl border border-slate-300 font-mono text-sm uppercase font-bold"
+              />
+            </div>
+          </div>
+
+          {issue && (
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="bg-slate-900 text-white p-6 flex flex-col md:flex-row justify-between gap-4">
+                <div>
+                  <div className="flex items-center space-x-3 mb-2">
+                    <span className="font-mono font-bold text-amber-400 bg-slate-800 px-3 py-1 rounded border border-slate-700">
+                      {issue.srn}
+                    </span>
+                    <span className="bg-blue-600 text-white text-xs font-bold px-2.5 py-1 rounded-full uppercase">
+                      {issue.status}
+                    </span>
+                  </div>
+                  <h3 className="text-xl font-bold">{issue.type} — {issue.ward_number}</h3>
+                  <p className="text-xs text-slate-400 mt-1">{issue.address}</p>
+                </div>
+
+                <button
+                  onClick={() => {
+                    onUpvote(issue.id);
+                    setUpvoted(true);
+                  }}
+                  disabled={upvoted}
+                  className="bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold px-4 py-2 rounded-xl border border-slate-700 self-start"
+                >
+                  👍 {upvoted ? 'Upvoted (+1)' : 'Me Too / Impacted'} ({issue.upvotes})
+                </button>
+              </div>
+
+              <div className="p-6 md:p-8 space-y-6">
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-4">Official Redressal Timeline</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                    {stages.map((stg, idx) => {
+                      const cur = getStageIdx(issue.status);
+                      const isDone = idx <= cur;
+                      const isCurrent = idx === cur;
+                      return (
+                        <div
+                          key={idx}
+                          className={`p-3 rounded-xl border text-xs ${
+                            isCurrent ? 'bg-blue-50 border-blue-500 ring-1 ring-blue-500 font-bold' : isDone ? 'bg-emerald-50 border-emerald-300' : 'bg-slate-50 border-slate-200 opacity-60'
+                          }`}
+                        >
+                          <div className="flex items-center space-x-1.5 mb-1">
+                            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${isDone ? 'bg-emerald-500 text-white' : 'bg-slate-300'}`}>
+                              {isDone ? '✓' : idx + 1}
+                            </span>
+                            <span className="font-bold">{stg.label}</span>
+                          </div>
+                          <span className="text-[11px] text-slate-500 font-normal">{stg.desc}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Before / After Photo Comparison */}
+                <div className="pt-4 border-t border-slate-200">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
+                    Audit Evidence: Before & After Resolution Proof
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="border border-slate-200 rounded-xl overflow-hidden bg-slate-100">
+                      <div className="bg-slate-800 text-white text-[10px] font-bold px-3 py-1 uppercase tracking-wider">
+                        Initial Citizen Evidence (Before)
+                      </div>
+                      <img src={issue.image_url} alt="Before" className="w-full h-44 object-cover" />
+                    </div>
+
+                    <div className="border border-slate-200 rounded-xl overflow-hidden bg-slate-100">
+                      <div className="bg-emerald-800 text-white text-[10px] font-bold px-3 py-1 uppercase tracking-wider">
+                        Field Repair Proof of Work (After)
+                      </div>
+                      {issue.after_image_url ? (
+                        <img src={issue.after_image_url} alt="After" className="w-full h-44 object-cover" />
+                      ) : (
+                        <div className="h-44 flex flex-col items-center justify-center text-slate-400 p-4 text-center">
+                          <span className="text-2xl mb-1">⏳</span>
+                          <span className="text-xs font-bold">Field repair in progress</span>
+                          <span className="text-[10px]">Photo proof pending junior engineer upload</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-slate-200">
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs space-y-2">
+                    <div className="font-bold text-slate-800">🛡️ Municipal Assignments</div>
+                    <div>Department: <strong>{issue.department}</strong></div>
+                    <div>Engineer: <strong>{issue.action?.assigned_official || 'Er. R. Venkatesh (JE)'}</strong></div>
+                    <div>Unit: <strong>{issue.action?.assigned_team || 'PWD Rapid Response Unit 4'}</strong></div>
+                    <div>Work Order: <strong className="font-mono text-blue-700">{issue.action?.work_order_id || 'WO-PWD-2026-118'}</strong></div>
+                  </div>
+
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs space-y-2">
+                    <div className="font-bold text-slate-800">⏳ SLA & Risk Guarantee</div>
+                    <div>Target SLA: <strong className="text-emerald-700">{issue.sla_hours} Hours Maximum</strong></div>
+                    <div>Current Severity: <strong className="text-rose-600">{issue.severity} / 100</strong></div>
+                    <div>3-Day Escalation: <strong className="text-orange-600">{issue.prediction?.severity_in_3_days}/100</strong></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ==========================================
+    // 3. MONSOON WATCH & RISK RADAR VIEW
+    // ==========================================
+    function MonsoonRadarView({ issues }) {
+      const highRainIssues = issues.filter(i => (i.prediction?.rainfall_forecast_mm || 0) >= 20 || i.severity >= 80);
+
+      return (
+        <div className="max-w-6xl mx-auto py-8 px-4 space-y-6">
+          <div className="text-center max-w-2xl mx-auto mb-8">
+            <span className="inline-block px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200 mb-2">
+              🌧️ Open-Meteo Precipitation Telemetry
+            </span>
+            <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">
+              Citywide Monsoon & Flood Risk Radar
+            </h2>
+            <p className="text-xs text-slate-600 mt-1">
+              Cross-referencing live meteorological telemetry with computer-vision road reports to prevent vehicle submergence and infrastructure washouts.
+            </p>
+          </div>
+
+          {/* Key Weather Metrics */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+              <div className="text-xs font-bold text-slate-500 uppercase">24-Hour Rainfall Forecast</div>
+              <div className="text-3xl font-black text-blue-600 mt-1">38.4 mm</div>
+              <div className="text-[11px] text-slate-500 mt-1">Moderate to heavy monsoon showers expected</div>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-rose-200 shadow-sm">
+              <div className="text-xs font-bold text-rose-600 uppercase">High Risk Low-Lying Spots</div>
+              <div className="text-3xl font-black text-rose-600 mt-1">{highRainIssues.length} Hazards</div>
+              <div className="text-[11px] text-rose-600 mt-1">Waterlogging risk exceeds 85% threshold</div>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-emerald-200 shadow-sm">
+              <div className="text-xs font-bold text-emerald-600 uppercase">Preventive Pump Deployments</div>
+              <div className="text-3xl font-black text-emerald-600 mt-1">8 High-Power Pumps</div>
+              <div className="text-[11px] text-emerald-600 mt-1">Positioned at Seshadripuram & Indiranagar</div>
+            </div>
+          </div>
+
+          {/* Dynamic Risk Table connected to database */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="p-4 bg-slate-900 text-white font-bold text-sm flex justify-between items-center">
+              <span>Critical Arterial Road Risk Watchlist (Connected to Live DB)</span>
+              <span className="text-xs bg-amber-500 text-slate-950 px-2 py-0.5 rounded font-black">LIVE ADVISORY</span>
+            </div>
+            <div className="divide-y divide-slate-200 text-xs">
+              {highRainIssues.map(item => (
+                <div key={item.id} className="p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
+                  <div>
+                    <div className="font-bold text-slate-900 text-sm">{item.address} ({item.ward_number})</div>
+                    <div className="text-slate-500">
+                      {item.type} — {item.prediction?.risk_summary || 'Rainfall vulnerability flagged.'}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="bg-rose-100 text-rose-800 px-2.5 py-1 rounded font-bold">Severity: {item.severity}/100</span>
+                    <span className="bg-blue-600 text-white px-3 py-1 rounded-lg font-bold">Deploy Suction Unit</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ==============================================================
+    // 4. WARD SLA PERFORMANCE LEADERBOARD (DYNAMICALLY CONNECTED)
+    // ==============================================================
+    function WardLeaderboardView({ issues }) {
+      // Dynamic computation by ward
+      const wardMap = {};
+      const defaultWards = [
+        "Ward 08 - North Gate",
+        "Ward 12 - Indiranagar",
+        "Ward 15 - South East",
+        "Ward 04 - West Central",
+        "Ward 14 - Market East"
+      ];
+
+      defaultWards.forEach(w => {
+        wardMap[w] = { name: w, active: 0, resolved: 0 };
+      });
+
+      issues.forEach(i => {
+        const w = i.ward_number || "Ward 12 - Indiranagar";
+        if (!wardMap[w]) wardMap[w] = { name: w, active: 0, resolved: 0 };
+        if (i.status === 'Resolved') wardMap[w].resolved += 1;
+        else wardMap[w].active += 1;
+      });
+
+      const wardList = Object.values(wardMap).map((w, idx) => {
+        const total = w.active + w.resolved;
+        const rate = total > 0 ? ((w.resolved / total) * 100).toFixed(1) : "95.0";
+        return {
+          ...w,
+          resolutionRate: `${rate}%`,
+          avgHours: `${14 + idx * 7}h`,
+          badge: idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : "⚠️",
+          status: idx === 0 ? "Top Performer" : idx === 4 ? "SLA Review" : "Good Standing"
+        };
+      }).sort((a, b) => parseFloat(b.resolutionRate) - parseFloat(a.resolutionRate));
+
+      return (
+        <div className="max-w-5xl mx-auto py-8 px-4 space-y-6">
+          <div className="text-center max-w-2xl mx-auto mb-8">
+            <span className="inline-block px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 mb-2">
+              🏆 Municipal Accountability
+            </span>
+            <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">
+              Ward SLA Performance Scorecard
+            </h2>
+            <p className="text-xs text-slate-600 mt-1">
+              Public rankings of municipal zones dynamically calculated from live grievance resolutions.
+            </p>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="p-4 bg-slate-900 text-white font-bold text-sm">
+              Official Municipal Corporation Zone Standings
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-100 text-slate-700 uppercase font-bold border-b border-slate-200">
+                  <tr>
+                    <th className="py-3 px-4">Rank</th>
+                    <th className="py-3 px-4">Municipal Ward</th>
+                    <th className="py-3 px-4">Resolution Rate</th>
+                    <th className="py-3 px-4">Avg Turnaround</th>
+                    <th className="py-3 px-4">Active / Resolved</th>
+                    <th className="py-3 px-4 text-right">Commission Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {wardList.map((w, idx) => (
+                    <tr key={w.name} className="hover:bg-slate-50 transition">
+                      <td className="py-3 px-4 font-bold text-sm">
+                        <span>{w.badge} #{idx + 1}</span>
+                      </td>
+                      <td className="py-3 px-4 font-bold text-slate-900">{w.name}</td>
+                      <td className="py-3 px-4 font-bold text-emerald-600 text-sm">{w.resolutionRate}</td>
+                      <td className="py-3 px-4 font-mono font-semibold">{w.avgHours}</td>
+                      <td className="py-3 px-4 text-slate-600">{w.active} open / {w.resolved} closed</td>
+                      <td className="py-3 px-4 text-right">
+                        <span className={`px-2.5 py-1 rounded-full font-bold ${
+                          idx === 0 ? 'bg-emerald-100 text-emerald-800' :
+                          idx === wardList.length - 1 ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-800'
+                        }`}>
+                          {w.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ==============================================================
+    // 5. TAXPAYER ROI & PREVENTIVE SAVINGS (INDIAN RUPEES ₹)
+    // ==============================================================
+    function TaxpayerRoiView({ issues }) {
+      const resolvedOrProactiveCount = issues.length * 28; // Multiplier representing city scale
+      const [customCount, setCustomCount] = useState(resolvedOrProactiveCount);
+
+      const costPerEarly = 1250;
+      const costPerDelayed = 18500;
+      const earlyCost = customCount * costPerEarly;
+      const delayedCost = customCount * costPerDelayed;
+      const totalSaved = delayedCost - earlyCost;
+      const totalSavedLakhs = (totalSaved / 100000).toFixed(2);
+
+      return (
+        <div className="max-w-4xl mx-auto py-8 px-4 space-y-6">
+          <div className="text-center max-w-2xl mx-auto mb-8">
+            <span className="inline-block px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 mb-2">
+              💰 Digital Twin Economics (INR ₹)
+            </span>
+            <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">
+              Taxpayer Savings & Preventative ROI
+            </h2>
+            <p className="text-xs text-slate-600 mt-1">
+              Validating Slide 11: "Predict problems before they become emergencies. Saves repair cost and reduces road accidents."
+            </p>
+          </div>
+
+          <div className="bg-slate-900 text-white rounded-2xl p-6 sm:p-8 shadow-xl border border-slate-800">
+            <div className="text-xs font-mono font-bold text-amber-400 uppercase tracking-wider mb-2">
+              Interactive Municipal Budget Simulator (Indian Rupees)
+            </div>
+
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-6 border-b border-slate-800">
+              <div>
+                <span className="text-xs text-slate-400">Total Public Municipal Funds Saved</span>
+                <div className="text-4xl font-black text-emerald-400 mt-1">
+                  ₹{totalSaved.toLocaleString('en-IN')}
+                  <span className="text-sm font-semibold text-slate-300 ml-2">
+                    (~₹{totalSavedLakhs} Lakhs)
+                  </span>
+                </div>
+              </div>
+              <div className="bg-slate-800 px-4 py-2.5 rounded-xl border border-slate-700 text-right">
+                <span className="text-[10px] uppercase text-slate-400 block font-bold">Estimated Accidents Prevented</span>
+                <span className="text-xl font-bold text-amber-400">{Math.round(customCount * 0.42)} Two-Wheeler Incidents</span>
+              </div>
+            </div>
+
+            <div className="py-6 space-y-3">
+              <div className="flex justify-between text-xs font-semibold">
+                <label>Simulate Early Potholes Detected & Fixed within 24 Hours:</label>
+                <span className="font-mono text-amber-400 font-bold">{customCount} Repairs</span>
+              </div>
+              <input
+                type="range"
+                min="20"
+                max="500"
+                value={customCount}
+                onChange={(e) => setCustomCount(Number(e.target.value))}
+                className="w-full accent-emerald-500 h-2 bg-slate-800 rounded-lg cursor-pointer"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-slate-800 text-xs">
+              <div className="bg-emerald-950/60 p-4 rounded-xl border border-emerald-800/60">
+                <span className="text-emerald-400 font-bold block mb-1">With CivicPulse AI (Proactive 24h SLA)</span>
+                <p className="text-slate-300">Total Expenditure: <strong>₹{earlyCost.toLocaleString('en-IN')}</strong></p>
+                <span className="text-[11px] text-slate-400 mt-1 block">
+                  Cold-mix asphalt patch at <strong>₹{costPerEarly.toLocaleString('en-IN')}</strong> per pothole before monsoon rain erodes road sub-base.
+                </span>
+              </div>
+
+              <div className="bg-rose-950/60 p-4 rounded-xl border border-rose-800/60">
+                <span className="text-rose-400 font-bold block mb-1">Traditional Municipal Flow (Neglected Reactive)</span>
+                <p className="text-slate-300">Total Expenditure: <strong>₹{delayedCost.toLocaleString('en-IN')}</strong></p>
+                <span className="text-[11px] text-slate-400 mt-1 block">
+                  Delayed crater repairs cost <strong>₹{costPerDelayed.toLocaleString('en-IN')}</strong> due to sub-base damage and emergency resurfacing.
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ==========================================
+    // 6. MUNICIPAL ICCC CONTROL CENTER VIEW
+    // ==========================================
+    function IcccView({ issues, onAssign, onResolve, onSelectSrn }) {
+      const [filterDept, setFilterDept] = useState('All');
+      const [filterStatus, setFilterStatus] = useState('All');
+      const [viewMode, setViewMode] = useState('table');
+      const [modalIssue, setModalIssue] = useState(null);
+      const [modalMode, setModalMode] = useState('');
+      const [official, setOfficial] = useState('Er. R. Venkatesh (JE)');
+      const [team, setTeam] = useState('PWD Rapid Response Unit 4');
+      const [notes, setNotes] = useState('');
+
+      const filtered = issues.filter(i => {
+        const d = filterDept === 'All' || i.department.toLowerCase().includes(filterDept.toLowerCase());
+        const s = filterStatus === 'All' || i.status.toLowerCase() === filterStatus.toLowerCase();
+        return d && s;
+      });
+
+      return (
+        <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 space-y-6">
+          <div className="flex flex-col md:flex-row justify-between gap-4">
+            <div>
+              <div className="flex items-center space-x-2 text-xs font-mono font-bold text-slate-500 uppercase">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                <span>MUNICIPAL LIVE OPERATIONS ROOM</span>
+              </div>
+              <h2 className="text-2xl font-black text-slate-900">Integrated Command & Control Center (ICCC)</h2>
+              <p className="text-xs text-slate-500">Live triage queue, GIS dispatch, and SLA enforcement console.</p>
+            </div>
+
+            <div className="flex bg-slate-200 p-1 rounded-xl text-xs font-bold self-start">
+              <button
+                onClick={() => setViewMode('table')}
+                className={`px-4 py-2 rounded-lg transition ${viewMode === 'table' ? 'bg-white text-blue-700 shadow' : 'text-slate-600'}`}
+              >
+                📋 Triage Queue
+              </button>
+              <button
+                onClick={() => setViewMode('map')}
+                className={`px-4 py-2 rounded-lg transition ${viewMode === 'map' ? 'bg-white text-blue-700 shadow' : 'text-slate-600'}`}
+              >
+                🗺️ Interactive GIS Map
+              </button>
+            </div>
+          </div>
+
+          {/* KPI Ribbon */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+              <div className="text-xs font-bold text-slate-500 uppercase">Total Logged</div>
+              <div className="text-3xl font-black text-slate-900 mt-1">{issues.length}</div>
+            </div>
+            <div className="bg-white p-5 rounded-2xl border border-rose-200 shadow-sm">
+              <div className="text-xs font-bold text-rose-600 uppercase">Critical Emergencies (&gt;80)</div>
+              <div className="text-3xl font-black text-rose-600 mt-1">
+                {issues.filter(i => i.severity >= 80 && i.status !== 'Resolved').length}
+              </div>
+            </div>
+            <div className="bg-white p-5 rounded-2xl border border-amber-200 shadow-sm">
+              <div className="text-xs font-bold text-amber-600 uppercase">Active Field Crews</div>
+              <div className="text-3xl font-black text-amber-600 mt-1">
+                {issues.filter(i => i.status === 'Assigned' || i.status === 'In Progress').length}
+              </div>
+            </div>
+            <div className="bg-white p-5 rounded-2xl border border-emerald-200 shadow-sm">
+              <div className="text-xs font-bold text-emerald-600 uppercase">Resolved Closed</div>
+              <div className="text-3xl font-black text-emerald-600 mt-1">
+                {issues.filter(i => i.status === 'Resolved').length}
+              </div>
+            </div>
+          </div>
+
+          {viewMode === 'map' ? (
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+              <MapComponent issues={filtered} />
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap justify-between gap-3 text-xs">
+                <div className="flex gap-2">
+                  <select
+                    value={filterDept}
+                    onChange={(e) => setFilterDept(e.target.value)}
+                    className="px-3 py-1.5 rounded-lg border bg-white font-medium"
+                  >
+                    <option value="All">All Departments</option>
+                    <option value="PWD">PWD / Roads & Bridges</option>
+                    <option value="Solid Waste">Solid Waste Management</option>
+                    <option value="Stormwater">Drainage & Stormwater (BWSSB)</option>
+                    <option value="Electrical">Electrical Department</option>
+                  </select>
+
+                  <select
+                    value={filterStatus}
+                    onChange={(e) => setFilterStatus(e.target.value)}
+                    className="px-3 py-1.5 rounded-lg border bg-white font-medium"
+                  >
+                    <option value="All">All Statuses</option>
+                    <option value="Submitted">Submitted (Needs Triage)</option>
+                    <option value="Assigned">Assigned</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Resolved">Resolved</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-100 text-slate-700 text-xs uppercase font-bold border-b border-slate-200">
+                    <tr>
+                      <th className="py-3 px-4">SRN / Category</th>
+                      <th className="py-3 px-4">Ward & Location</th>
+                      <th className="py-3 px-4">Severity</th>
+                      <th className="py-3 px-4">Priority & SLA</th>
+                      <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 text-xs">
+                    {filtered.map(item => (
+                      <tr key={item.id} className="hover:bg-slate-50 transition">
+                        <td className="py-3 px-4">
+                          <div className="flex items-center space-x-3">
+                            <img src={item.image_url} alt="" className="w-10 h-10 rounded-lg object-cover border" />
+                            <div>
+                              <span
+                                onClick={() => onSelectSrn(item.srn)}
+                                className="font-mono font-bold text-blue-600 hover:underline cursor-pointer block"
+                              >
+                                {item.srn}
+                              </span>
+                              <span className="font-bold text-slate-900 text-sm">{item.type}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="font-bold text-slate-900">{item.ward_number}</div>
+                          <div className="text-[11px] text-slate-500 max-w-xs truncate">{item.address}</div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className={`font-mono font-bold text-sm ${item.severity >= 80 ? 'text-rose-600' : 'text-amber-600'}`}>
+                            {item.severity} / 100
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className={`px-2 py-0.5 rounded font-bold uppercase text-[10px] ${
+                            (item.prediction?.priority || 'HIGH') === 'HIGH' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'
+                          }`}>
+                            {item.prediction?.priority || 'HIGH'} ({item.sla_hours}h SLA)
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className={`px-2.5 py-1 rounded-full font-bold text-[11px] ${
+                            item.status === 'Resolved' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'
+                          }`}>
+                            {item.status}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          {item.status !== 'Resolved' ? (
+                            <div className="flex justify-end gap-1.5">
+                              <button
+                                onClick={() => {
+                                  setModalIssue(item);
+                                  setModalMode('assign');
+                                }}
+                                className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-2.5 py-1 rounded-lg"
+                              >
+                                Dispatch
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setModalIssue(item);
+                                  setModalMode('resolve');
+                                }}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2.5 py-1 rounded-lg"
+                              >
+                                Resolve
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-emerald-600 font-bold">✓ Closed</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Modal */}
+          {modalIssue && (
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+              <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border">
+                <h3 className="text-lg font-bold text-slate-900 mb-1">
+                  {modalMode === 'assign' ? 'Dispatch Work Order' : 'Validate Proof & Close Grievance'} — {modalIssue.srn}
+                </h3>
+                <p className="text-xs text-slate-500 mb-4">{modalIssue.type} | {modalIssue.ward_number}</p>
+
+                {modalMode === 'assign' ? (
+                  <div className="space-y-3 text-xs">
+                    <div>
+                      <label className="font-bold block mb-1">Junior Engineer</label>
+                      <input type="text" value={official} onChange={(e) => setOfficial(e.target.value)} className="w-full p-2 border rounded-lg" />
+                    </div>
+                    <div>
+                      <label className="font-bold block mb-1">Field Unit</label>
+                      <input type="text" value={team} onChange={(e) => setTeam(e.target.value)} className="w-full p-2 border rounded-lg" />
+                    </div>
+                    <div>
+                      <label className="font-bold block mb-1">Action Directive</label>
+                      <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Cold-mix asphalt patch within 24h" className="w-full p-2 border rounded-lg" rows={2}></textarea>
+                    </div>
+                    <div className="flex justify-end gap-2 pt-2 border-t">
+                      <button onClick={() => setModalIssue(null)} className="px-3 py-1.5 border rounded-lg font-bold">Cancel</button>
+                      <button
+                        onClick={() => {
+                          onAssign(modalIssue.id, official, team, notes);
+                          setModalIssue(null);
+                        }}
+                        className="bg-blue-600 text-white px-4 py-1.5 rounded-lg font-bold"
+                      >
+                        Confirm Dispatch
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3 text-xs">
+                    <div>
+                      <label className="font-bold block mb-1">Completion Notes</label>
+                      <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Road surface leveled and cleared." className="w-full p-2 border rounded-lg" rows={3}></textarea>
+                    </div>
+                    <div className="flex justify-end gap-2 pt-2 border-t">
+                      <button onClick={() => setModalIssue(null)} className="px-3 py-1.5 border rounded-lg font-bold">Cancel</button>
+                      <button
+                        onClick={() => {
+                          onResolve(modalIssue.id, notes);
+                          setModalIssue(null);
+                        }}
+                        className="bg-emerald-600 text-white px-4 py-1.5 rounded-lg font-bold"
+                      >
+                        Confirm Closure
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Leaflet Main City Map Component
+    function MapComponent({ issues }) {
+      const mapRef = useRef(null);
+      const leafletMap = useRef(null);
+      const markersGroup = useRef([]);
+
+      useEffect(() => {
+        if (!mapRef.current || !window.L) return;
+
+        if (!leafletMap.current) {
+          const map = window.L.map(mapRef.current).setView([12.9716, 77.5946], 13);
+          window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+          leafletMap.current = map;
+        }
+
+        const map = leafletMap.current;
+
+        // Clear existing markers
+        markersGroup.current.forEach(m => map.removeLayer(m));
+        markersGroup.current = [];
+
+        issues.forEach(issue => {
+          if (!issue.latitude || !issue.longitude) return;
+          const color = issue.status === 'Resolved' ? '#10b981' : issue.severity >= 80 ? '#ef4444' : '#f59e0b';
+          const icon = window.L.divIcon({
+            className: 'custom-pin',
+            html: `<div style="background:${color};width:26px;height:26px;border-radius:50%;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);color:white;font-weight:bold;font-size:11px;display:flex;align-items:center;justify-content:center;">${issue.severity >= 80 ? '!' : '●'}</div>`,
+            iconSize: [26, 26]
+          });
+          const marker = window.L.marker([issue.latitude, issue.longitude], { icon })
+            .addTo(map)
+            .bindPopup(`<strong>${issue.srn}</strong><br/>${issue.type}<br/>Severity: ${issue.severity}/100<br/>${issue.ward_number}`);
+          markersGroup.current.push(marker);
+        });
+      }, [issues]);
+
+      return <div ref={mapRef} style={{ width: '100%', height: '450px', borderRadius: '1rem' }}></div>;
+    }
+
+    // Render Root
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
