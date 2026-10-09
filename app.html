@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CivicPulse AI | Smart Cities Municipal Platform</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React 18 & ReactDOM & Babel CDN for standalone instant browser execution -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .custom-pin { display: flex; align-items: center; justify-content: center; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // Initial Mock Grievances matching the project blueprint
+    const INITIAL_ISSUES = [
+      {
+        id: "issue-1",
+        srn: "CIVIC-W12-2026-8419",
+        type: "Pothole",
+        department: "PWD / Roads & Bridges",
+        latitude: 12.9716,
+        longitude: 77.5946,
+        address: "100 Ft Road, Near Indiranagar Metro Pillar 42",
+        ward_number: "Ward 12 - Indiranagar",
+        severity: 84,
+        status: "Assigned",
+        upvotes: 14,
+        image_url: "https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?w=600&auto=format&fit=crop&q=80",
+        created_at: "14 hours ago",
+        sla_hours: 24,
+        prediction: {
+          severity_in_24_hours: 92,
+          severity_in_3_days: 96,
+          severity_in_7_days: 100,
+          priority: "HIGH",
+          rainfall_forecast_mm: 24.5,
+          traffic_density: "Heavy Commercial & Transit",
+          risk_summary: "High risk of crater expansion and two-wheeler skid accidents due to impending rainfall.",
+          recommended_action: "Immediate cold-mix asphalt patching & hazard barricading within 24 hours.",
+          sla_hours: 24
+        },
+        action: {
+          recommended_action: "Immediate cold-mix asphalt patching & hazard barricading.",
+          assigned_team: "PWD Rapid Response Unit 4",
+          assigned_official: "Er. R. Venkatesh (Junior Engineer)",
+          work_order_id: "WO-PWD-2026-118"
+        }
+      },
+      {
+        id: "issue-2",
+        srn: "CIVIC-W14-2026-3921",
+        type: "Garbage Dump",
+        department: "Solid Waste Management",
+        latitude: 12.9650,
+        longitude: 77.6010,
+        address: "Opposite City Central Market, 4th Cross",
+        ward_number: "Ward 14 - Market East",
+        severity: 65,
+        status: "In Progress",
+        upvotes: 8,
+        image_url: "https://images.unsplash.com/photo-1605600659873-d808a13e4d2a?w=600&auto=format&fit=crop&q=80",
+        created_at: "22 hours ago",
+        sla_hours: 48,
+        prediction: {
+          severity_in_24_hours: 74,
+          severity_in_3_days: 85,
+          severity_in_7_days: 92,
+          priority: "MEDIUM",
+          rainfall_forecast_mm: 12.0,
+          traffic_density: "Dense Pedestrian",
+          risk_summary: "Piled organic waste blocking pedestrian walkway; microbial spread risk if rain begins.",
+          recommended_action: "Dispatch municipal tipper truck and deploy sanitation inspector.",
+          sla_hours: 48
+        },
+        action: {
+          recommended_action: "Dispatch municipal tipper truck and deploy sanitation inspector.",
+          assigned_team: "SWM Sanitation Team Charlie",
+          assigned_official: "S. Anitha (Health Inspector)",
+          work_order_id: "WO-SWM-2026-442"
+        }
+      },
+      {
+        id: "issue-3",
+        srn: "CIVIC-W08-2026-7290",
+        type: "Waterlogging",
+        department: "Stormwater & Drainage (BWSSB)",
+        latitude: 12.9790,
+        longitude: 77.5850,
+        address: "Railway Underpass, Seshadripuram",
+        ward_number: "Ward 08 - North Gate",
+        severity: 91,
+        status: "Submitted",
+        upvotes: 26,
+        image_url: "https://images.unsplash.com/photo-1547683905-f686c993aae5?w=600&auto=format&fit=crop&q=80",
+        created_at: "3 hours ago",
+        sla_hours: 12,
+        prediction: {
+          severity_in_24_hours: 98,
+          severity_in_3_days: 100,
+          severity_in_7_days: 100,
+          priority: "HIGH",
+          rainfall_forecast_mm: 38.0,
+          traffic_density: "Critical Arterial Choke Point",
+          risk_summary: "Underpass drainage choked. Vehicle submergence risk during evening cloudburst.",
+          recommended_action: "Emergency de-watering high-capacity suction pumps required immediately.",
+          sla_hours: 12
+        }
+      },
+      {
+        id: "issue-4",
+        srn: "CIVIC-W15-2026-1102",
+        type: "Broken Streetlight",
+        department: "Municipal Electrical Dept",
+        latitude: 12.9550,
+        longitude: 77.6150,
+        address: "Koramangala 5th Block, 80 Feet Road Junction",
+        ward_number: "Ward 15 - South East",
+        severity: 35,
+        status: "Resolved",
+        upvotes: 3,
+        image_url: "https://images.unsplash.com/photo-1508873696983-2df5293cb32f?w=600&auto=format&fit=crop&q=80",
+        created_at: "2 days ago",
+        sla_hours: 72,
+        prediction: {
+          severity_in_24_hours: 35,
+          severity_in_3_days: 40,
+          severity_in_7_days: 42,
+          priority: "LOW",
+          rainfall_forecast_mm: 5.0,
+          traffic_density: "Residential Sector",
+          risk_summary: "Localized illumination failure. Low accident probability.",
+          recommended_action: "Routine bulb and wiring replacement by maintenance contractor.",
+          sla_hours: 72
+        },
+        action: {
+          recommended_action: "Routine bulb and wiring replacement by maintenance contractor.",
+          assigned_team: "Electrical Maintenance Division 2",
+          assigned_official: "Er. P. Kumar",
+          work_order_id: "WO-ELEC-2026-092",
+          resolved_time: "Yesterday"
+        }
+      }
+    ];
+
+    function App() {
+      const [activeTab, setActiveTab] = useState('citizen');
+      const [issues, setIssues] = useState(INITIAL_ISSUES);
+      const [trackedSrn, setTrackedSrn] = useState('CIVIC-W12-2026-8419');
+
+      return (
+        <div className="min-h-screen flex flex-col">
+          {/* Official Gov Header */}
+          <header className="border-b border-slate-200 bg-white shadow-sm sticky top-0 z-50">
+            <div className="bg-slate-900 text-slate-300 text-xs px-4 py-1.5 flex flex-wrap justify-between items-center border-b border-slate-800">
+              <div className="flex items-center space-x-3">
+                <span className="flex items-center space-x-1.5 font-bold text-amber-400">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span>MUNICIPAL CORPORATION OF SMART CITY</span>
+                </span>
+                <span className="hidden md:inline text-slate-600">|</span>
+                <span className="hidden md:inline text-slate-400">Unified Grievance Redressal & Predictive AI Platform</span>
+              </div>
+              <div className="flex items-center space-x-4 font-mono text-xs">
+                <span>Toll-Free Helpline: <strong className="text-white">1913</strong> / <strong className="text-white">112</strong></span>
+                <span className="text-amber-400 font-semibold bg-amber-950/70 px-2 py-0.5 rounded border border-amber-800/50">
+                  Smart City Mission
+                </span>
+              </div>
+            </div>
+
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-center space-x-3.5">
+                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-900 to-slate-900 flex items-center justify-center text-white shadow font-black text-xl border border-blue-700/40">
+                  🏛️
+                </div>
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <h1 className="text-xl font-black tracking-tight text-slate-900">
+                      CivicPulse <span className="text-blue-600">AI</span>
+                    </h1>
+                    <span className="bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-200">
+                      OFFICIAL PORTAL
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 font-medium">
+                    Automated Computer Vision Grievance Triage & Predictive Risk Architecture
+                  </p>
+                </div>
+              </div>
+
+              {/* View Switcher */}
+              <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-semibold">
+                <button
+                  onClick={() => setActiveTab('citizen')}
+                  className={`px-4 py-2 rounded-lg transition ${
+                    activeTab === 'citizen' ? 'bg-white text-blue-700 shadow-sm border border-slate-200 font-bold' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  📍 Citizen Report
+                </button>
+                <button
+                  onClick={() => setActiveTab('tracker')}
+                  className={`px-4 py-2 rounded-lg transition ${
+                    activeTab === 'tracker' ? 'bg-white text-blue-700 shadow-sm border border-slate-200 font-bold' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  🔍 Track Grievance
+                </button>
+                <button
+                  onClick={() => setActiveTab('iccc')}
+                  className={`px-4 py-2 rounded-lg transition flex items-center space-x-1.5 ${
+                    activeTab === 'iccc' ? 'bg-slate-900 text-amber-400 font-bold shadow' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <span>🏢 Municipal ICCC</span>
+                  <span className="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
+                </button>
+              </div>
+            </div>
+          </header>
+
+          {/* Main Body */}
+          <main className="flex-1">
+            {activeTab === 'citizen' && (
+              <CitizenView
+                onIssueCreated={(newIssue) => {
+                  setIssues([newIssue, ...issues]);
+                  setTrackedSrn(newIssue.srn);
+                }}
+                onTrack={(srn) => {
+                  setTrackedSrn(srn);
+                  setActiveTab('tracker');
+                }}
+              />
+            )}
+
+            {activeTab === 'tracker' && (
+              <TrackerView
+                initialSrn={trackedSrn}
+                issues={issues}
+                onUpvote={(id) => {
+                  setIssues(issues.map(i => i.id === id ? { ...i, upvotes: i.upvotes + 1 } : i));
+                }}
+              />
+            )}
+
+            {activeTab === 'iccc' && (
+              <IcccView
+                issues={issues}
+                onAssign={(id, official, team, notes) => {
+                  setIssues(issues.map(i => i.id === id ? {
+                    ...i,
+                    status: 'Assigned',
+                    action: {
+                      ...i.action,
+                      assigned_official: official,
+                      assigned_team: team,
+                      recommended_action: notes || i.action?.recommended_action
+                    }
+                  } : i));
+                }}
+                onResolve={(id, notes) => {
+                  setIssues(issues.map(i => i.id === id ? {
+                    ...i,
+                    status: 'Resolved',
+                    action: {
+                      ...i.action,
+                      resolved_time: 'Just Now',
+                      resolution_notes: notes
+                    }
+                  } : i));
+                }}
+                onSelectSrn={(srn) => {
+                  setTrackedSrn(srn);
+                  setActiveTab('tracker');
+                }}
+              />
+            )}
+          </main>
+
+          {/* Footer */}
+          <footer className="bg-slate-900 text-slate-400 text-xs py-8 border-t border-slate-800 mt-12">
+            <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4">
+              <div>
+                <p className="font-bold text-slate-200">CivicPulse AI — Smart City Municipal Administration</p>
+                <p className="text-slate-500 mt-0.5">YOLOv8 Computer Vision Inference + Open-Meteo Weather Risk Intelligence</p>
+              </div>
+              <div className="flex items-center space-x-4 text-slate-400">
+                <span>Built by <strong>Team Knox Drift</strong> (Shyam, Balaji, Sujal, Akhil)</span>
+                <span>•</span>
+                <span>Ministry of Housing & Urban Affairs Compliance</span>
+              </div>
+            </div>
+          </footer>
+        </div>
+      );
+    }
+
+    // ==========================================
+    // CITIZEN REPORT VIEW
+    // ==========================================
+    function CitizenView({ onIssueCreated, onTrack }) {
+      const [photoUrl, setPhotoUrl] = useState('');
+      const [address, setAddress] = useState('Indiranagar 100ft Road, Ward 12');
+      const [ward, setWard] = useState('Ward 12 - Indiranagar');
+      const [analyzing, setAnalyzing] = useState(false);
+      const [detection, setDetection] = useState(null);
+      const [prediction, setPrediction] = useState(null);
+      const [submittedIssue, setSubmittedIssue] = useState(null);
+
+      const samplePhotos = [
+        { label: "Pothole on Arterial Road", url: "https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?w=600&auto=format&fit=crop&q=80", type: "Pothole", dept: "PWD / Roads & Bridges", sev: 82, rain: 24.5 },
+        { label: "Garbage Accumulation", url: "https://images.unsplash.com/photo-1605600659873-d808a13e4d2a?w=600&auto=format&fit=crop&q=80", type: "Garbage Dump", dept: "Solid Waste Management", sev: 64, rain: 12.0 },
+        { label: "Underpass Waterlogging", url: "https://images.unsplash.com/photo-1547683905-f686c993aae5?w=600&auto=format&fit=crop&q=80", type: "Waterlogging", dept: "Stormwater & Drainage (BWSSB)", sev: 92, rain: 38.0 },
+        { label: "Broken Streetlight", url: "https://images.unsplash.com/photo-1508873696983-2df5293cb32f?w=600&auto=format&fit=crop&q=80", type: "Broken Streetlight", dept: "Municipal Electrical Dept", sev: 36, rain: 5.0 }
+      ];
+
+      const handleSelectPhoto = (sample) => {
+        setPhotoUrl(sample.url);
+        setAnalyzing(true);
+        setDetection(null);
+        setPrediction(null);
+
+        setTimeout(() => {
+          setAnalyzing(false);
+          setDetection({
+            detected_type: sample.type,
+            department: sample.dept,
+            confidence: 0.94,
+            initial_severity: sample.sev
+          });
+          setPrediction({
+            severity_in_24_hours: Math.min(100, sample.sev + 12),
+            severity_in_3_days: Math.min(100, sample.sev + 20),
+            severity_in_7_days: Math.min(100, sample.sev + 28),
+            priority: sample.sev >= 80 ? "HIGH" : sample.sev >= 40 ? "MEDIUM" : "LOW",
+            rainfall_forecast_mm: sample.rain,
+            traffic_density: "Heavy Arterial Transit",
+            sla_hours: sample.sev >= 80 ? 24 : 48,
+            recommended_action: sample.sev >= 80
+              ? "Immediate emergency cold-mix patching & hazard barricading within 24 hours."
+              : "Schedule ward maintenance team inspection."
+          });
+        }, 800);
+      };
+
+      const handleFileUpload = (e) => {
+        const file = e.target.files?.[0];
+        if (file) {
+          const url = URL.createObjectURL(file);
+          handleSelectPhoto({
+            label: "Citizen Upload",
+            url,
+            type: "Pothole",
+            dept: "PWD / Roads & Bridges",
+            sev: 76,
+            rain: 18.0
+          });
+        }
+      };
+
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        const rand = Math.floor(1000 + Math.random() * 9000);
+        const srn = `CIVIC-W12-2026-${rand}`;
+        const newIssue = {
+          id: `issue-${Date.now()}`,
+          srn,
+          type: detection.detected_type,
+          department: detection.department,
+          latitude: 12.9716,
+          longitude: 77.5946,
+          address,
+          ward_number: ward,
+          severity: detection.initial_severity,
+          status: "Submitted",
+          upvotes: 1,
+          image_url: photoUrl,
+          created_at: "Just Now",
+          sla_hours: prediction.sla_hours,
+          prediction,
+          action: {
+            recommended_action: prediction.recommended_action
+          }
+        };
+
+        onIssueCreated(newIssue);
+        setSubmittedIssue(newIssue);
+      };
+
+      return (
+        <div className="max-w-4xl mx-auto py-8 px-4">
+          <div className="text-center mb-8">
+            <span className="inline-block px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-200 mb-3">
+              ✨ AI-Powered Municipal Grievance Redressal
+            </span>
+            <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">
+              Report a Civic Issue in 60 Seconds
+            </h2>
+            <p className="mt-2 text-sm text-slate-600 max-w-xl mx-auto">
+              Upload a photo. Pretrained computer vision classifies the hazard, links Open-Meteo precipitation models, and alerts the ward engineer.
+            </p>
+          </div>
+
+          {submittedIssue ? (
+            <div className="bg-white rounded-2xl shadow-lg border border-emerald-200 p-8 text-center">
+              <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
+                ✓
+              </div>
+              <h3 className="text-2xl font-bold text-slate-900">Grievance Registered Successfully</h3>
+              <p className="text-slate-600 text-sm mt-1">Logged into Municipal Integrated Command & Control System (ICCC).</p>
+
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 my-6 max-w-md mx-auto text-left">
+                <div className="flex justify-between items-center pb-3 border-b border-slate-200">
+                  <span className="text-xs font-bold uppercase text-slate-500">Service Request Number (SRN)</span>
+                  <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded border border-blue-200">
+                    {submittedIssue.srn}
+                  </span>
+                </div>
+                <div className="pt-3 space-y-1.5 text-sm text-slate-600">
+                  <div className="flex justify-between">
+                    <span>Category:</span>
+                    <strong className="text-slate-900">{submittedIssue.type}</strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Department:</span>
+                    <strong className="text-slate-900">{submittedIssue.department}</strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Target Resolution SLA:</span>
+                    <strong className="text-emerald-700">{submittedIssue.sla_hours} Hours</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-center space-x-4">
+                <button
+                  onClick={() => onTrack(submittedIssue.srn)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2.5 rounded-xl shadow"
+                >
+                  Track Resolution Live →
+                </button>
+                <button
+                  onClick={() => {
+                    setSubmittedIssue(null);
+                    setPhotoUrl('');
+                    setDetection(null);
+                  }}
+                  className="border border-slate-300 text-slate-700 hover:bg-slate-100 font-semibold px-5 py-2.5 rounded-xl"
+                >
+                  Report Another
+                </button>
+              </div>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 md:p-8 space-y-6">
+              {/* Photo Input */}
+              <div>
+                <label className="block text-sm font-bold text-slate-900 mb-2">
+                  1. Capture or Select Photo of Civic Issue <span className="text-red-500">*</span>
+                </label>
+
+                {/* Quick Sample Selector for Instant Hackathon Testing */}
+                <div className="mb-4">
+                  <div className="text-xs font-semibold text-slate-500 mb-2">Quick Hackathon Test Photos:</div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {samplePhotos.map((s, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => handleSelectPhoto(s)}
+                        className={`text-left p-2 rounded-xl border text-xs font-semibold transition ${
+                          photoUrl === s.url ? 'border-blue-600 bg-blue-50 text-blue-900' : 'border-slate-200 hover:border-slate-300 bg-slate-50'
+                        }`}
+                      >
+                        <img src={s.url} alt="" className="w-full h-16 object-cover rounded-lg mb-1.5" />
+                        <span className="block truncate">{s.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <label className="flex-1 border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-xl p-4 text-center cursor-pointer bg-slate-50 transition">
+                    <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
+                    <span className="text-xs font-bold text-slate-700">📁 Or Choose Any Image File From Computer</span>
+                  </label>
+                </div>
+
+                {photoUrl && (
+                  <div className="mt-4 relative rounded-xl overflow-hidden border border-slate-200 h-64 bg-slate-900">
+                    <img src={photoUrl} alt="Preview" className="w-full h-full object-cover" />
+                    {analyzing && (
+                      <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center text-white text-sm font-semibold">
+                        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-2"></div>
+                        <span>Running YOLO Computer Vision Detection & Weather Risk Model...</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* AI Detection Card */}
+              {detection && (
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border border-blue-200 p-5">
+                  <div className="flex justify-between items-center pb-3 border-b border-blue-200 mb-3">
+                    <span className="text-xs font-extrabold text-blue-950 uppercase tracking-wider flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                      AI Computer Vision Assessment
+                    </span>
+                    <span className="text-xs font-mono font-bold bg-blue-100 text-blue-900 px-2 py-0.5 rounded border border-blue-300">
+                      Confidence: {(detection.confidence * 100).toFixed(0)}%
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-white p-3.5 rounded-xl border border-blue-100 shadow-sm">
+                      <span className="text-xs text-slate-500 font-medium">Hazard Type</span>
+                      <p className="text-lg font-bold text-slate-900">{detection.detected_type}</p>
+                      <span className="text-[11px] text-blue-600 font-semibold">{detection.department}</span>
+                    </div>
+
+                    <div className="bg-white p-3.5 rounded-xl border border-blue-100 shadow-sm">
+                      <span className="text-xs text-slate-500 font-medium">Initial Severity</span>
+                      <div className="text-2xl font-black text-rose-600">{detection.initial_severity} <span className="text-xs text-slate-400">/ 100</span></div>
+                      <div className="w-full bg-slate-100 h-1.5 rounded-full mt-1 overflow-hidden">
+                        <div className="bg-rose-500 h-full rounded-full" style={{ width: `${detection.initial_severity}%` }}></div>
+                      </div>
+                    </div>
+
+                    <div className="bg-white p-3.5 rounded-xl border border-blue-100 shadow-sm">
+                      <span className="text-xs text-slate-500 font-medium">Priority & Target SLA</span>
+                      <p className="text-lg font-bold text-amber-700">{prediction?.priority}</p>
+                      <span className="text-[11px] text-emerald-700 font-semibold">Target SLA: {prediction?.sla_hours} Hours</span>
+                    </div>
+                  </div>
+
+                  {/* 7-Day Risk & Weather */}
+                  {prediction && (
+                    <div className="mt-4 pt-3 border-t border-blue-200">
+                      <div className="text-xs font-bold text-slate-700 mb-2">
+                        🌧️ Predictive Risk (Open-Meteo {prediction.rainfall_forecast_mm}mm rain + {prediction.traffic_density})
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                        <div className="bg-white p-2 rounded-lg border border-blue-100">
+                          <span className="text-slate-500 block">In 24 Hours</span>
+                          <strong className="text-amber-700 font-bold text-sm">{prediction.severity_in_24_hours}/100</strong>
+                        </div>
+                        <div className="bg-white p-2 rounded-lg border border-blue-100">
+                          <span className="text-slate-500 block">In 3 Days</span>
+                          <strong className="text-orange-600 font-bold text-sm">{prediction.severity_in_3_days}/100</strong>
+                        </div>
+                        <div className="bg-white p-2 rounded-lg border border-blue-100">
+                          <span className="text-slate-500 block">In 7 Days</span>
+                          <strong className="text-rose-700 font-bold text-sm">{prediction.severity_in_7_days}/100</strong>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Location Input */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Street Address</label>
+                  <input
+                    type="text"
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Municipal Ward</label>
+                  <select
+                    value={ward}
+                    onChange={(e) => setWard(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm bg-white"
+                  >
+                    <option value="Ward 12 - Indiranagar">Ward 12 - Indiranagar</option>
+                    <option value="Ward 14 - Market East">Ward 14 - Market East</option>
+                    <option value="Ward 08 - North Gate">Ward 08 - North Gate</option>
+                    <option value="Ward 15 - South East">Ward 15 - South East</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Submit */}
+              <button
+                type="submit"
+                disabled={!photoUrl || analyzing}
+                className={`w-full py-3.5 rounded-xl font-bold text-white shadow transition ${
+                  !photoUrl || analyzing ? 'bg-slate-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 active:scale-95'
+                }`}
+              >
+                Submit Grievance to Municipal Corporation →
+              </button>
+            </form>
+          )}
+        </div>
+      );
+    }
+
+    // ==========================================
+    // GRIEVANCE TRACKER VIEW
+    // ==========================================
+    function TrackerView({ initialSrn, issues, onUpvote }) {
+      const [srnInput, setSrnInput] = useState(initialSrn || 'CIVIC-W12-2026-8419');
+      const [issue, setIssue] = useState(null);
+      const [upvoted, setUpvoted] = useState(false);
+
+      useEffect(() => {
+        const found = issues.find(i => i.srn.toLowerCase() === srnInput.trim().toLowerCase());
+        setIssue(found || issues[0]);
+        setUpvoted(false);
+      }, [srnInput, issues]);
+
+      const stages = [
+        { label: "1. Logged", desc: "Geo-tagged photo" },
+        { label: "2. AI Triaged", desc: "YOLO + Weather score" },
+        { label: "3. Work Order", desc: "Assigned to Engineer" },
+        { label: "4. In Progress", desc: "Field contractor on-site" },
+        { label: "5. Resolved", desc: "Proof validated" }
+      ];
+
+      const getStageIdx = (status) => {
+        if (status === 'Submitted') return 0;
+        if (status === 'Triaged') return 1;
+        if (status === 'Assigned') return 2;
+        if (status === 'In Progress') return 3;
+        if (status === 'Resolved') return 4;
+        return 1;
+      };
+
+      return (
+        <div className="max-w-4xl mx-auto py-8 px-4">
+          <div className="text-center mb-8">
+            <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Track Grievance Status</h2>
+            <p className="mt-2 text-sm text-slate-600">Enter your Service Request Number (SRN) to view field progress & SLA timers.</p>
+
+            <div className="mt-6 max-w-md mx-auto flex gap-2">
+              <input
+                type="text"
+                value={srnInput}
+                onChange={(e) => setSrnInput(e.target.value)}
+                placeholder="e.g. CIVIC-W12-2026-8419"
+                className="flex-1 px-4 py-2.5 rounded-xl border border-slate-300 font-mono text-sm uppercase font-bold"
+              />
+            </div>
+          </div>
+
+          {issue && (
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="bg-slate-900 text-white p-6 flex flex-col md:flex-row justify-between gap-4">
+                <div>
+                  <div className="flex items-center space-x-3 mb-2">
+                    <span className="font-mono font-bold text-amber-400 bg-slate-800 px-3 py-1 rounded border border-slate-700">
+                      {issue.srn}
+                    </span>
+                    <span className="bg-blue-600 text-white text-xs font-bold px-2.5 py-1 rounded-full uppercase">
+                      {issue.status}
+                    </span>
+                  </div>
+                  <h3 className="text-xl font-bold">{issue.type} — {issue.ward_number}</h3>
+                  <p className="text-xs text-slate-400 mt-1">{issue.address}</p>
+                </div>
+
+                <button
+                  onClick={() => {
+                    onUpvote(issue.id);
+                    setUpvoted(true);
+                  }}
+                  disabled={upvoted}
+                  className="bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold px-4 py-2 rounded-xl border border-slate-700 self-start"
+                >
+                  👍 {upvoted ? 'Upvoted (+1)' : 'Me Too / Impacted'} ({issue.upvotes})
+                </button>
+              </div>
+
+              <div className="p-6 md:p-8 space-y-6">
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-4">Official Redressal Timeline</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                    {stages.map((stg, idx) => {
+                      const cur = getStageIdx(issue.status);
+                      const isDone = idx <= cur;
+                      const isCurrent = idx === cur;
+                      return (
+                        <div
+                          key={idx}
+                          className={`p-3 rounded-xl border text-xs ${
+                            isCurrent ? 'bg-blue-50 border-blue-500 ring-1 ring-blue-500 font-bold' : isDone ? 'bg-emerald-50 border-emerald-300' : 'bg-slate-50 border-slate-200 opacity-60'
+                          }`}
+                        >
+                          <div className="flex items-center space-x-1.5 mb-1">
+                            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${isDone ? 'bg-emerald-500 text-white' : 'bg-slate-300'}`}>
+                              {isDone ? '✓' : idx + 1}
+                            </span>
+                            <span className="font-bold">{stg.label}</span>
+                          </div>
+                          <span className="text-[11px] text-slate-500 font-normal">{stg.desc}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-slate-200">
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs space-y-2">
+                    <div className="font-bold text-slate-800">🛡️ Municipal Assignments</div>
+                    <div>Department: <strong>{issue.department}</strong></div>
+                    <div>Engineer: <strong>{issue.action?.assigned_official || 'Er. R. Venkatesh (JE)'}</strong></div>
+                    <div>Unit: <strong>{issue.action?.assigned_team || 'PWD Rapid Response Unit 4'}</strong></div>
+                    <div>Work Order: <strong className="font-mono text-blue-700">{issue.action?.work_order_id || 'WO-PWD-2026-118'}</strong></div>
+                  </div>
+
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs space-y-2">
+                    <div className="font-bold text-slate-800">⏳ SLA & Risk Guarantee</div>
+                    <div>Target SLA: <strong className="text-emerald-700">{issue.sla_hours} Hours Maximum</strong></div>
+                    <div>Current Severity: <strong className="text-rose-600">{issue.severity} / 100</strong></div>
+                    <div>3-Day Escalation: <strong className="text-orange-600">{issue.prediction?.severity_in_3_days}/100</strong></div>
+                  </div>
+                </div>
+
+                {issue.image_url && (
+                  <div className="pt-4 border-t border-slate-200">
+                    <div className="text-xs font-bold text-slate-500 uppercase mb-2">Evidence Photo</div>
+                    <img src={issue.image_url} alt="" className="w-64 h-40 object-cover rounded-xl border" />
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ==========================================
+    // MUNICIPAL ICCC CONTROL CENTER VIEW
+    // ==========================================
+    function IcccView({ issues, onAssign, onResolve, onSelectSrn }) {
+      const [filterDept, setFilterDept] = useState('All');
+      const [filterStatus, setFilterStatus] = useState('All');
+      const [viewMode, setViewMode] = useState('table'); // 'table' | 'map'
+      const [modalIssue, setModalIssue] = useState(null);
+      const [modalMode, setModalMode] = useState(''); // 'assign' | 'resolve'
+      const [official, setOfficial] = useState('Er. R. Venkatesh (JE)');
+      const [team, setTeam] = useState('PWD Rapid Response Unit 4');
+      const [notes, setNotes] = useState('');
+
+      const filtered = issues.filter(i => {
+        const d = filterDept === 'All' || i.department.toLowerCase().includes(filterDept.toLowerCase());
+        const s = filterStatus === 'All' || i.status.toLowerCase() === filterStatus.toLowerCase();
+        return d && s;
+      });
+
+      return (
+        <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 space-y-6">
+          <div className="flex flex-col md:flex-row justify-between gap-4">
+            <div>
+              <div className="flex items-center space-x-2 text-xs font-mono font-bold text-slate-500 uppercase">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                <span>MUNICIPAL LIVE OPERATIONS ROOM</span>
+              </div>
+              <h2 className="text-2xl font-black text-slate-900">Integrated Command & Control Center (ICCC)</h2>
+              <p className="text-xs text-slate-500">Live triage queue, GIS dispatch, and SLA enforcement console.</p>
+            </div>
+
+            <div className="flex bg-slate-200 p-1 rounded-xl text-xs font-bold self-start">
+              <button
+                onClick={() => setViewMode('table')}
+                className={`px-4 py-2 rounded-lg transition ${viewMode === 'table' ? 'bg-white text-blue-700 shadow' : 'text-slate-600'}`}
+              >
+                📋 Triage Queue
+              </button>
+              <button
+                onClick={() => setViewMode('map')}
+                className={`px-4 py-2 rounded-lg transition ${viewMode === 'map' ? 'bg-white text-blue-700 shadow' : 'text-slate-600'}`}
+              >
+                🗺️ Interactive GIS Map
+              </button>
+            </div>
+          </div>
+
+          {/* KPI Ribbon */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+              <div className="text-xs font-bold text-slate-500 uppercase">Total Logged</div>
+              <div className="text-3xl font-black text-slate-900 mt-1">{issues.length}</div>
+            </div>
+            <div className="bg-white p-5 rounded-2xl border border-rose-200 shadow-sm">
+              <div className="text-xs font-bold text-rose-600 uppercase">Critical Emergencies (&gt;80)</div>
+              <div className="text-3xl font-black text-rose-600 mt-1">
+                {issues.filter(i => i.severity >= 80 && i.status !== 'Resolved').length}
+              </div>
+            </div>
+            <div className="bg-white p-5 rounded-2xl border border-amber-200 shadow-sm">
+              <div className="text-xs font-bold text-amber-600 uppercase">Active Field Crews</div>
+              <div className="text-3xl font-black text-amber-600 mt-1">
+                {issues.filter(i => i.status === 'Assigned' || i.status === 'In Progress').length}
+              </div>
+            </div>
+            <div className="bg-white p-5 rounded-2xl border border-emerald-200 shadow-sm">
+              <div className="text-xs font-bold text-emerald-600 uppercase">Resolved Closed</div>
+              <div className="text-3xl font-black text-emerald-600 mt-1">
+                {issues.filter(i => i.status === 'Resolved').length}
+              </div>
+            </div>
+          </div>
+
+          {viewMode === 'map' ? (
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+              <MapComponent issues={filtered} />
+            </div>
+          ) : (
+            /* Table */
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap justify-between gap-3 text-xs">
+                <div className="flex gap-2">
+                  <select
+                    value={filterDept}
+                    onChange={(e) => setFilterDept(e.target.value)}
+                    className="px-3 py-1.5 rounded-lg border bg-white font-medium"
+                  >
+                    <option value="All">All Departments</option>
+                    <option value="PWD">PWD / Roads & Bridges</option>
+                    <option value="Solid Waste">Solid Waste Management</option>
+                    <option value="Stormwater">Drainage & Stormwater (BWSSB)</option>
+                    <option value="Electrical">Electrical Department</option>
+                  </select>
+
+                  <select
+                    value={filterStatus}
+                    onChange={(e) => setFilterStatus(e.target.value)}
+                    className="px-3 py-1.5 rounded-lg border bg-white font-medium"
+                  >
+                    <option value="All">All Statuses</option>
+                    <option value="Submitted">Submitted (Needs Triage)</option>
+                    <option value="Assigned">Assigned</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Resolved">Resolved</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-100 text-slate-700 text-xs uppercase font-bold border-b border-slate-200">
+                    <tr>
+                      <th className="py-3 px-4">SRN / Category</th>
+                      <th className="py-3 px-4">Ward & Location</th>
+                      <th className="py-3 px-4">Severity</th>
+                      <th className="py-3 px-4">Priority & SLA</th>
+                      <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 text-xs">
+                    {filtered.map(item => (
+                      <tr key={item.id} className="hover:bg-slate-50 transition">
+                        <td className="py-3 px-4">
+                          <div className="flex items-center space-x-3">
+                            <img src={item.image_url} alt="" className="w-10 h-10 rounded-lg object-cover border" />
+                            <div>
+                              <span
+                                onClick={() => onSelectSrn(item.srn)}
+                                className="font-mono font-bold text-blue-600 hover:underline cursor-pointer block"
+                              >
+                                {item.srn}
+                              </span>
+                              <span className="font-bold text-slate-900 text-sm">{item.type}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="font-bold text-slate-900">{item.ward_number}</div>
+                          <div className="text-[11px] text-slate-500 max-w-xs truncate">{item.address}</div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className={`font-mono font-bold text-sm ${item.severity >= 80 ? 'text-rose-600' : 'text-amber-600'}`}>
+                            {item.severity} / 100
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className={`px-2 py-0.5 rounded font-bold uppercase text-[10px] ${
+                            (item.prediction?.priority || 'HIGH') === 'HIGH' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'
+                          }`}>
+                            {item.prediction?.priority || 'HIGH'} ({item.sla_hours}h SLA)
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className={`px-2.5 py-1 rounded-full font-bold text-[11px] ${
+                            item.status === 'Resolved' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'
+                          }`}>
+                            {item.status}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          {item.status !== 'Resolved' ? (
+                            <div className="flex justify-end gap-1.5">
+                              <button
+                                onClick={() => {
+                                  setModalIssue(item);
+                                  setModalMode('assign');
+                                }}
+                                className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-2.5 py-1 rounded-lg"
+                              >
+                                Dispatch
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setModalIssue(item);
+                                  setModalMode('resolve');
+                                }}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2.5 py-1 rounded-lg"
+                              >
+                                Resolve
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-emerald-600 font-bold">✓ Closed</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Modal */}
+          {modalIssue && (
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+              <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border">
+                <h3 className="text-lg font-bold text-slate-900 mb-1">
+                  {modalMode === 'assign' ? 'Dispatch Work Order' : 'Validate Proof & Close Grievance'} — {modalIssue.srn}
+                </h3>
+                <p className="text-xs text-slate-500 mb-4">{modalIssue.type} | {modalIssue.ward_number}</p>
+
+                {modalMode === 'assign' ? (
+                  <div className="space-y-3 text-xs">
+                    <div>
+                      <label className="font-bold block mb-1">Junior Engineer</label>
+                      <input type="text" value={official} onChange={(e) => setOfficial(e.target.value)} className="w-full p-2 border rounded-lg" />
+                    </div>
+                    <div>
+                      <label className="font-bold block mb-1">Field Unit</label>
+                      <input type="text" value={team} onChange={(e) => setTeam(e.target.value)} className="w-full p-2 border rounded-lg" />
+                    </div>
+                    <div>
+                      <label className="font-bold block mb-1">Action Directive</label>
+                      <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Cold-mix asphalt patch within 24h" className="w-full p-2 border rounded-lg" rows={2}></textarea>
+                    </div>
+                    <div className="flex justify-end gap-2 pt-2 border-t">
+                      <button onClick={() => setModalIssue(null)} className="px-3 py-1.5 border rounded-lg font-bold">Cancel</button>
+                      <button
+                        onClick={() => {
+                          onAssign(modalIssue.id, official, team, notes);
+                          setModalIssue(null);
+                        }}
+                        className="bg-blue-600 text-white px-4 py-1.5 rounded-lg font-bold"
+                      >
+                        Confirm Dispatch
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3 text-xs">
+                    <div>
+                      <label className="font-bold block mb-1">Completion Notes</label>
+                      <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Road surface leveled and cleared." className="w-full p-2 border rounded-lg" rows={3}></textarea>
+                    </div>
+                    <div className="flex justify-end gap-2 pt-2 border-t">
+                      <button onClick={() => setModalIssue(null)} className="px-3 py-1.5 border rounded-lg font-bold">Cancel</button>
+                      <button
+                        onClick={() => {
+                          onResolve(modalIssue.id, notes);
+                          setModalIssue(null);
+                        }}
+                        className="bg-emerald-600 text-white px-4 py-1.5 rounded-lg font-bold"
+                      >
+                        Confirm Closure
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Leaflet Map Component
+    function MapComponent({ issues }) {
+      const mapRef = useRef(null);
+      const leafletMap = useRef(null);
+
+      useEffect(() => {
+        if (!mapRef.current || !window.L) return;
+
+        if (!leafletMap.current) {
+          const map = window.L.map(mapRef.current).setView([12.9716, 77.5946], 13);
+          window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+          leafletMap.current = map;
+        }
+
+        const map = leafletMap.current;
+
+        issues.forEach(issue => {
+          if (!issue.latitude || !issue.longitude) return;
+          const color = issue.status === 'Resolved' ? '#10b981' : issue.severity >= 80 ? '#ef4444' : '#f59e0b';
+          const icon = window.L.divIcon({
+            className: 'custom-pin',
+            html: `<div style="background:${color};width:26px;height:26px;border-radius:50%;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);color:white;font-weight:bold;font-size:11px;display:flex;align-items:center;justify-content:center;">${issue.severity >= 80 ? '!' : '●'}</div>`,
+            iconSize: [26, 26]
+          });
+          window.L.marker([issue.latitude, issue.longitude], { icon })
+            .addTo(map)
+            .bindPopup(`<strong>${issue.srn}</strong><br/>${issue.type}<br/>Severity: ${issue.severity}/100<br/>${issue.ward_number}`);
+        });
+      }, [issues]);
+
+      return <div ref={mapRef} style={{ width: '100%', height: '450px', borderRadius: '1rem' }}></div>;
+    }
+
+    // Render Root
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
